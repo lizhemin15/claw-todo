@@ -1,7 +1,7 @@
 ---
 name: todo-push
 description: 推送待办事项到 Claw Todo。配对码一键连接，支持离线队列。
-version: 3.0.0
+version: 3.1.0
 tags: [todo, push, claw-todo, productivity]
 config:
   endpoint:
@@ -15,6 +15,7 @@ config:
     description: "来源标识，区分不同智能体"
 files:
   - SKILL.md
+  - install.py
   - scripts/setup.py
   - scripts/push_todo.py
   - references/api.md
@@ -95,8 +96,33 @@ push_todo(
 
 ## 安装
 
+### Hermes 智能体
 ```bash
 hermes skills install "well-known:https://todo.open-claw.click/.well-known/skills/todo-push" -y --force
+```
+
+### 任意智能体（Claude Code / Codex / OpenCode / 任何能跑 Python 的）
+```bash
+# 方式1: 下载安装脚本（推荐）
+curl -sL https://todo.open-claw.click/.well-known/skills/todo-push/install.py -o install.py
+python3 install.py http://localhost:8090 <配对码> <来源名>
+
+# 方式2: 环境变量模式
+CLAW_TODO_ENDPOINT=http://localhost:8090 CLAW_TODO_PAIR_CODE=123456 python3 install.py
+```
+
+### 纯 API（无脚本，任何语言都能用）
+```bash
+# 1. 配对码换 Token
+curl -X POST http://localhost:8090/api/pair/exchange \
+  -H "Content-Type: application/json" \
+  -d '{"code":"123456","source":"my-agent"}'
+
+# 2. 推送待办
+curl -X POST http://localhost:8090/api/todos \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"title":"买牛奶","source":"my-agent"}'
 ```
 
 ## Scripts

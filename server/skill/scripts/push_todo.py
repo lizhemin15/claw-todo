@@ -27,15 +27,23 @@ def load_config():
     """Load config from environment or config file"""
     global ENDPOINT, TOKEN, OFFLINE_QUEUE, RETRY_INTERVAL, SOURCE
 
-    config_path = Path(__file__).parent.parent / "config.json"
-    if config_path.exists():
-        with open(config_path) as f:
-            cfg = json.load(f)
-            ENDPOINT = cfg.get("endpoint", ENDPOINT)
-            TOKEN = cfg.get("token", TOKEN)
-            OFFLINE_QUEUE = cfg.get("offline_queue", OFFLINE_QUEUE)
-            RETRY_INTERVAL = cfg.get("retry_interval", RETRY_INTERVAL)
-            SOURCE = cfg.get("source", SOURCE)
+    # Try multiple config locations
+    config_paths = [
+        Path(__file__).parent.parent / "config.json",  # skill dir (hermes)
+        Path(__file__).parent / "config.json",          # same dir (standalone install)
+        Path.home() / ".claw-todo" / "config.json",    # universal install
+    ]
+
+    for config_path in config_paths:
+        if config_path.exists():
+            with open(config_path) as f:
+                cfg = json.load(f)
+                ENDPOINT = cfg.get("endpoint", ENDPOINT)
+                TOKEN = cfg.get("token", TOKEN)
+                OFFLINE_QUEUE = cfg.get("offline_queue", OFFLINE_QUEUE)
+                RETRY_INTERVAL = cfg.get("retry_interval", RETRY_INTERVAL)
+                SOURCE = cfg.get("source", SOURCE)
+            return
 
 
 def api_call(path, method="GET", data=None):
