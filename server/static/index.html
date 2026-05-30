@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>🦞 Claw Todo</title>
-  <link rel="stylesheet" href="/style.css?v=9">
+  <link rel="stylesheet" href="/style.css?v=10">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#0d0d0d">
 </head>
@@ -118,13 +118,24 @@
       <div class="modal-content">
         <h2>⚙️ 设置</h2>
         <div class="settings-section">
-          <h3>绑定 Token</h3>
-          <p class="hint">用于智能体推送待办</p>
-          <div class="token-display">
-            <input type="text" id="bind-token" readonly>
-            <button id="gen-token-btn" class="btn-secondary">生成</button>
-            <button id="copy-token-btn" class="btn-secondary">复制</button>
+          <h3>配对码</h3>
+          <p class="hint">告诉智能体这个配对码，即可自动连接</p>
+          <div class="pair-code-display">
+            <span id="pair-code" class="pair-code">------</span>
+            <span id="pair-timer" class="pair-timer"></span>
           </div>
+          <button id="gen-pair-btn" class="btn-primary" style="width:100%">生成配对码</button>
+        </div>
+        <div class="settings-section">
+          <h3>高级：绑定 Token</h3>
+          <details class="adv-details">
+            <summary>手动配置 Token</summary>
+            <div class="token-display">
+              <input type="text" id="bind-token" readonly>
+              <button id="gen-token-btn" class="btn-secondary">生成</button>
+              <button id="copy-token-btn" class="btn-secondary">复制</button>
+            </div>
+          </details>
         </div>
         <div class="modal-actions">
           <button id="settings-close" class="btn-primary">关闭</button>
@@ -136,6 +147,6 @@
   <!-- Toast -->
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/app.js?v=9"></script>
+  <script src="/app.js?v=10"></script>
 </body>
 </html>

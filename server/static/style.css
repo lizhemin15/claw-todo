@@ -208,6 +208,41 @@ button:active { opacity: 0.6; }
 .token-display input { flex: 1; font-family: monospace; font-size: 0.7rem; }
 .token-display button { flex-shrink: 0; padding: 5px 8px; }
 
+/* 配对码 */
+.pair-code-display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px;
+  margin-bottom: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.pair-code {
+  font-family: 'SF Mono', 'Cascadia Code', monospace;
+  font-size: 2rem;
+  letter-spacing: 0.6em;
+  color: var(--accent);
+  font-weight: 700;
+}
+.pair-timer {
+  font-size: 0.75rem;
+  color: var(--text2);
+  min-width: 30px;
+}
+
+/* 高级折叠 */
+.adv-details { margin-top: 4px; }
+.adv-details summary {
+  cursor: pointer;
+  font-size: 0.7rem;
+  color: var(--text3);
+  padding: 4px 0;
+}
+.adv-details[open] .token-display { margin-top: 6px; }
+
 /* === Toast === */
 .toast {
   position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);

@@ -71,6 +71,16 @@ func createTables(db *sql.DB) error {
 	);
 
 	CREATE INDEX IF NOT EXISTS idx_sync_status ON sync_log(status);
+
+	CREATE TABLE IF NOT EXISTS pair_codes (
+		code TEXT PRIMARY KEY,
+		username TEXT NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		expires_at DATETIME NOT NULL,
+		used INTEGER DEFAULT 0
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_pair_expires ON pair_codes(expires_at);
 	`
 
 	_, err := db.Exec(schema)

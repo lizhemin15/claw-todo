@@ -15,10 +15,13 @@ import (
 //go:embed static
 var staticFiles embed.FS
 
+//go:embed skill
+var skillEmbed embed.FS
+
 var (
-	port       int
-	dataDir    string
-	jwtSecret  string
+	port      int
+	dataDir   string
+	jwtSecret string
 )
 
 func main() {
@@ -72,6 +75,9 @@ func main() {
 	// Initialize handlers
 	handler := NewHandler(db, auth, hub)
 
+	// Load embedded skill files for well-known endpoint
+	skillFiles = loadSkillFiles()
+
 	// Router
 	mux := http.NewServeMux()
 
@@ -80,6 +86,14 @@ func main() {
 	mux.HandleFunc("POST /api/auth/login", handler.Login)
 	mux.HandleFunc("POST /api/auth/token", handler.AuthMiddleware(handler.GenerateBindToken))
 	mux.HandleFunc("GET /api/auth/status", handler.AuthStatus)
+
+	// Pairing (auth required to generate, no auth to exchange)
+	mux.HandleFunc("POST /api/pair/code", handler.AuthMiddleware(handler.GeneratePairCode))
+	mux.HandleFunc("POST /api/pair/exchange", handler.ExchangePairCode)
+
+	// Well-Known Skills Endpoint
+	mux.HandleFunc("GET /.well-known/skills/index.json", handler.WellKnownIndex)
+	mux.HandleFunc("/.well-known/skills/todo-push/", handler.WellKnownSkillFile)
 
 	// Todo CRUD (auth required)
 	mux.HandleFunc("POST /api/todos", handler.AuthMiddleware(handler.CreateTodo))
@@ -138,4 +152,26 @@ func CORS(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// loadSkillFiles loads embedded skill files into memory for well-known endpoint
+func loadSkillFiles() map[string]string {
+	files := map[string]string{
+		"SKILL.md": "",
+		"scripts/setup.py": "",
+		"scripts/push_todo.py": "",
+		"references/api.md": "",
+	}
+
+	for path := range files {
+		data, err := fs.ReadFile(skillEmbed, "skill/"+path)
+		if err != nil {
+			log.Printf("Warning: failed to load skill file %s: %v", path, err)
+			continue
+		}
+		files[path] = string(data)
+	}
+
+	log.Printf("Loaded %d skill files for well-known endpoint", len(files))
+	return files
 }

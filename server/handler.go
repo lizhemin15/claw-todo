@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/rand"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -97,6 +98,106 @@ func (h *Handler) AuthStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"setup": h.auth.IsSetup(),
 	})
+}
+
+// GeneratePairCode generates a 6-digit pairing code (requires login)
+func (h *Handler) GeneratePairCode(w http.ResponseWriter, r *http.Request) {
+	user := r.Header.Get("X-User")
+	if user == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	// Generate 6-digit code
+	code := generatePairCode()
+
+	// Expire old codes for this user
+	h.db.Exec("UPDATE pair_codes SET used = 1 WHERE username = ? AND used = 0", user)
+
+	// Insert new code (5 min TTL)
+	expiresAt := time.Now().Add(5 * time.Minute)
+	_, err := h.db.Exec(
+		"INSERT INTO pair_codes (code, username, expires_at) VALUES (?, ?, ?)",
+		code, user, expiresAt,
+	)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to generate code"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"code":       code,
+		"expires_in": 300,
+	})
+}
+
+// ExchangePairCode exchanges a pairing code for a bind token (no login required)
+func (h *Handler) ExchangePairCode(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Code   string `json:"code"`
+		Source string `json:"source"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request"})
+		return
+	}
+
+	if req.Code == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "code required"})
+		return
+	}
+
+	// Look up code
+	var username string
+	var expiresAt time.Time
+	var used int
+	err := h.db.QueryRow(
+		"SELECT username, expires_at, used FROM pair_codes WHERE code = ?",
+		req.Code,
+	).Scan(&username, &expiresAt, &used)
+
+	if err == sql.ErrNoRows {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "invalid code"})
+		return
+	}
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		return
+	}
+
+	// Check if already used or expired
+	if used == 1 {
+		writeJSON(w, http.StatusGone, map[string]string{"error": "code already used"})
+		return
+	}
+	if time.Now().After(expiresAt) {
+		writeJSON(w, http.StatusGone, map[string]string{"error": "code expired"})
+		return
+	}
+
+	// Mark code as used
+	h.db.Exec("UPDATE pair_codes SET used = 1 WHERE code = ?", req.Code)
+
+	// Generate bind token
+	token, err := h.auth.GenerateBindToken(username)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to generate token"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"token":    token,
+		"username": username,
+		"message":  "pairing successful",
+	})
+}
+
+// generatePairCode generates a random 6-digit code
+func generatePairCode() string {
+	b := make([]byte, 3)
+	rand.Read(b)
+	num := int(b[0])<<16 | int(b[1])<<8 | int(b[2])
+	return fmt.Sprintf("%06d", num%1000000)
 }
 
 // GenerateBindToken generates a token for skill binding
@@ -464,4 +565,72 @@ func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	// Start read/write pumps
 	go client.writePump()
 	go client.readPump()
+}
+
+// ---------------------------------------------------------------------------
+// Well-Known Skills Endpoint (/.well-known/skills/)
+// ---------------------------------------------------------------------------
+
+// skillFiles holds the embedded skill content served via well-known endpoint.
+// Populated at startup from the skill directory.
+var skillFiles map[string]string
+
+// WellKnownIndex returns /.well-known/skills/index.json
+func (h *Handler) WellKnownIndex(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "public, max-age=300")
+
+	index := map[string]interface{}{
+		"skills": []map[string]interface{}{
+			{
+				"name":        "todo-push",
+				"description": "推送待办事项到 Claw Todo。配对码一键连接，支持离线队列。",
+				"version":     "2.0.0",
+				"files": []string{
+					"SKILL.md",
+					"scripts/setup.py",
+					"scripts/push_todo.py",
+					"references/api.md",
+				},
+			},
+		},
+	}
+	writeJSON(w, http.StatusOK, index)
+}
+
+// WellKnownSkillFile serves individual skill files under /.well-known/skills/todo-push/
+func (h *Handler) WellKnownSkillFile(w http.ResponseWriter, r *http.Request) {
+	// Path: /.well-known/skills/todo-push/<filepath>
+	// Extract the file part after the skill name
+	path := r.URL.Path
+	prefix := "/.well-known/skills/todo-push/"
+	if !strings.HasPrefix(path, prefix) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+		return
+	}
+
+	filePath := strings.TrimPrefix(path, prefix)
+	if filePath == "" {
+		filePath = "SKILL.md"
+	}
+
+	content, ok := skillFiles[filePath]
+	if !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "file not found"})
+		return
+	}
+
+	// Set content type
+	contentType := "text/plain; charset=utf-8"
+	if strings.HasSuffix(filePath, ".md") {
+		contentType = "text/markdown; charset=utf-8"
+	} else if strings.HasSuffix(filePath, ".py") {
+		contentType = "text/x-python; charset=utf-8"
+	} else if strings.HasSuffix(filePath, ".json") {
+		contentType = "application/json"
+	}
+
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Cache-Control", "public, max-age=300")
+	w.Write([]byte(content))
 }

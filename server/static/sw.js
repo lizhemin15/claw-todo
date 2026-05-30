@@ -1,4 +1,4 @@
-const CACHE_NAME = 'claw-todo-v9';
+const CACHE_NAME = 'claw-todo-v10';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

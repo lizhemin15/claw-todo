@@ -22,6 +22,8 @@ const API = {
   setup: '/api/auth/setup',
   login: '/api/auth/login',
   generateToken: '/api/auth/token',
+  pairCode: '/api/pair/code',
+  pairExchange: '/api/pair/exchange',
   todos: '/api/todos',
   syncPending: '/api/sync/pending',
   syncAck: '/api/sync/ack',
@@ -306,13 +308,43 @@ async function saveTodo() {
 }
 
 // === Settings ===
+let pairTimerInterval = null;
+
 function openSettings() {
   $('settings-modal').classList.remove('hidden');
-  updateBindToken();
 }
 
 function closeSettings() {
   $('settings-modal').classList.add('hidden');
+  if (pairTimerInterval) { clearInterval(pairTimerInterval); pairTimerInterval = null; }
+}
+
+async function generatePairCode() {
+  const res = await fetchJSON(API.pairCode, { method: 'POST' });
+  if (res?.code) {
+    const codeEl = $('pair-code');
+    codeEl.textContent = res.code;
+    // Countdown
+    let remaining = res.expires_in || 300;
+    const timerEl = $('pair-timer');
+    if (pairTimerInterval) clearInterval(pairTimerInterval);
+    pairTimerInterval = setInterval(() => {
+      remaining--;
+      if (remaining <= 0) {
+        clearInterval(pairTimerInterval);
+        pairTimerInterval = null;
+        codeEl.textContent = '------';
+        timerEl.textContent = '已过期';
+        return;
+      }
+      const m = Math.floor(remaining / 60);
+      const s = remaining % 60;
+      timerEl.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+    }, 1000);
+    toast('配对码已生成');
+  } else {
+    toast(res?.error || '生成失败');
+  }
 }
 
 async function generateBindToken() {
@@ -328,16 +360,6 @@ function copyBindToken() {
   if (!t) return toast('请先生成 Token');
   navigator.clipboard.writeText(t);
   toast('已复制');
-}
-
-async function updateBindToken() {
-  // 如果已有token就显示
-  const el = $('bind-token');
-  if (!el.value) {
-    // 尝试获取
-    const res = await fetchJSON(API.generateToken);
-    if (res?.token) el.value = res.token;
-  }
 }
 
 // === WebSocket ===
@@ -391,6 +413,7 @@ function setupEventListeners() {
   $('todo-modal').querySelector('.modal-backdrop').onclick = closeTodoModal;
 
   $('settings-close').onclick = closeSettings;
+  $('gen-pair-btn').onclick = generatePairCode;
   $('gen-token-btn').onclick = generateBindToken;
   $('copy-token-btn').onclick = copyBindToken;
   $('settings-modal').querySelector('.modal-backdrop').onclick = closeSettings;
