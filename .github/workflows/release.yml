@@ -17,19 +17,11 @@ jobs:
           - goos: linux
             goarch: amd64
             suffix: linux-amd64
+            cc: gcc
           - goos: linux
             goarch: arm64
             suffix: linux-arm64
-          - goos: darwin
-            goarch: amd64
-            suffix: darwin-amd64
-          - goos: darwin
-            goarch: arm64
-            suffix: darwin-arm64
-          - goos: windows
-            goarch: amd64
-            suffix: windows-amd64
-            ext: .exe
+            cc: aarch64-linux-gnu-gcc
 
     steps:
       - uses: actions/checkout@v4
@@ -38,20 +30,25 @@ jobs:
         with:
           go-version: '1.22'
 
+      - name: Install cross-compiler (arm64)
+        if: matrix.goarch == 'arm64'
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+
       - name: Build
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: 0
+          CGO_ENABLED: 1
+          CC: ${{ matrix.cc }}
         run: |
           cd server
-          go build -ldflags="-s -w" -o ../claw-todo-${{ matrix.suffix }}${{ matrix.ext }} .
+          go build -ldflags="-s -w" -o ../claw-todo-${{ matrix.suffix }} .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: claw-todo-${{ matrix.suffix }}
-          path: claw-todo-${{ matrix.suffix }}${{ matrix.ext }}
+          path: claw-todo-${{ matrix.suffix }}
 
   release:
     needs: build
