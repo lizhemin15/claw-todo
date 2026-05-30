@@ -1,0 +1,25 @@
+# Binary
+claw-todo
+*.exe
+
+# Data directory
+data/
+
+# Go
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Offline queue
+todo-push-queue.jsonl
+
+# JWT secret
+.jwt_secret
