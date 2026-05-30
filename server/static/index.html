@@ -4,12 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>🦞 Claw Todo</title>
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/style.css?v=9">
   <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#1a1a2e">
+  <meta name="theme-color" content="#0d0d0d">
 </head>
 <body>
-  <!-- Login/Setup Screen -->
+  <!-- 登录页 -->
   <div id="auth-screen" class="screen">
     <div class="auth-container">
       <h1>🦞 Claw Todo</h1>
@@ -17,61 +17,81 @@
         <h2>首次设置</h2>
         <p class="hint">创建管理员账号</p>
         <input type="text" id="setup-username" placeholder="用户名" autocomplete="username">
-        <input type="password" id="setup-password" placeholder="密码" autocomplete="new-password">
+        <div class="pwd-field">
+          <input type="text" id="setup-password" placeholder="密码" inputmode="text" autocomplete="off">
+          <button type="button" class="pwd-toggle" data-target="setup-password">🔒</button>
+        </div>
         <button id="setup-btn" class="btn-primary">创建账号</button>
       </div>
       <div id="login-form" class="auth-form">
         <h2>登录</h2>
         <input type="text" id="login-username" placeholder="用户名" autocomplete="username">
-        <input type="password" id="login-password" placeholder="密码" autocomplete="current-password">
+        <div class="pwd-field">
+          <input type="text" id="login-password" placeholder="密码" inputmode="text" autocomplete="off">
+          <button type="button" class="pwd-toggle" data-target="login-password">🔒</button>
+        </div>
         <button id="login-btn" class="btn-primary">登录</button>
       </div>
       <div id="auth-error" class="error-msg hidden"></div>
     </div>
   </div>
 
-  <!-- Main App -->
+  <!-- Kanban 主界面 -->
   <div id="app-screen" class="screen hidden">
-    <!-- Header -->
+    <!-- 顶栏 -->
     <header class="app-header">
       <div class="header-left">
-        <h1>🦞 Claw Todo</h1>
-        <span id="online-status" class="status-dot online" title="在线"></span>
+        <h1>🦞</h1>
+        <span id="online-status" class="status-dot online"></span>
       </div>
       <div class="header-right">
-        <button id="refresh-btn" class="icon-btn" title="刷新">🔄</button>
-        <button id="add-btn" class="icon-btn" title="新建待办">➕</button>
+        <button id="add-btn" class="icon-btn" title="新建">➕</button>
         <button id="settings-btn" class="icon-btn" title="设置">⚙️</button>
       </div>
     </header>
 
-    <!-- Filter Bar -->
-    <div class="filter-bar">
-      <button class="filter-btn active" data-filter="all">全部</button>
-      <button class="filter-btn" data-filter="pending">待办</button>
-      <button class="filter-btn" data-filter="completed">已完成</button>
-      <button class="filter-btn" data-filter="postponed">推迟</button>
+    <!-- Kanban 看板 -->
+    <div class="kanban-board">
+      <div class="kanban-column" data-status="pending">
+        <div class="column-header">
+          <span class="column-title">📋 待办</span>
+          <span class="column-count" id="count-pending">0</span>
+        </div>
+        <div class="column-body" id="col-pending"></div>
+      </div>
+      
+      <div class="kanban-column" data-status="in_progress">
+        <div class="column-header">
+          <span class="column-title">🔄 进行中</span>
+          <span class="column-count" id="count-in_progress">0</span>
+        </div>
+        <div class="column-body" id="col-in_progress"></div>
+      </div>
+      
+      <div class="kanban-column" data-status="completed">
+        <div class="column-header">
+          <span class="column-title">✅ 已完成</span>
+          <span class="column-count" id="count-completed">0</span>
+        </div>
+        <div class="column-body" id="col-completed"></div>
+      </div>
+      
+      <div class="kanban-column" data-status="postponed">
+        <div class="column-header">
+          <span class="column-title">⏰ 推迟</span>
+          <span class="column-count" id="count-postponed">0</span>
+        </div>
+        <div class="column-body" id="col-postponed"></div>
+      </div>
     </div>
 
-    <!-- Todo List -->
-    <div id="todo-list" class="todo-list">
-      <!-- Todos rendered here -->
-    </div>
-
-    <!-- Empty State -->
-    <div id="empty-state" class="empty-state hidden">
-      <div class="empty-icon">📋</div>
-      <p>暂无待办事项</p>
-      <p class="hint">点击右上角 ➕ 添加新待办</p>
-    </div>
-
-    <!-- Add/Edit Modal -->
+    <!-- 新建/编辑 Modal -->
     <div id="todo-modal" class="modal hidden">
       <div class="modal-backdrop"></div>
       <div class="modal-content">
         <h2 id="modal-title">新建待办</h2>
         <input type="text" id="todo-title-input" placeholder="标题 *" required>
-        <textarea id="todo-desc-input" placeholder="描述（可选）" rows="3"></textarea>
+        <textarea id="todo-desc-input" placeholder="描述（可选）" rows="2"></textarea>
         <div class="form-row">
           <select id="todo-priority-input">
             <option value="normal">普通</option>
@@ -79,9 +99,12 @@
             <option value="urgent">紧急</option>
             <option value="low">低</option>
           </select>
-          <input type="datetime-local" id="todo-due-input">
+          <select id="todo-status-input">
+            <option value="pending">待办</option>
+            <option value="in_progress">进行中</option>
+          </select>
         </div>
-        <input type="text" id="todo-tags-input" placeholder="标签（逗号分隔）">
+        <input type="datetime-local" id="todo-due-input">
         <div class="modal-actions">
           <button id="modal-cancel" class="btn-secondary">取消</button>
           <button id="modal-save" class="btn-primary">保存</button>
@@ -89,24 +112,19 @@
       </div>
     </div>
 
-    <!-- Settings Modal -->
+    <!-- 设置 Modal -->
     <div id="settings-modal" class="modal hidden">
       <div class="modal-backdrop"></div>
       <div class="modal-content">
         <h2>⚙️ 设置</h2>
         <div class="settings-section">
           <h3>绑定 Token</h3>
-          <p class="hint">用于智能体推送待办到此显示端</p>
+          <p class="hint">用于智能体推送待办</p>
           <div class="token-display">
             <input type="text" id="bind-token" readonly>
             <button id="gen-token-btn" class="btn-secondary">生成</button>
             <button id="copy-token-btn" class="btn-secondary">复制</button>
           </div>
-        </div>
-        <div class="settings-section">
-          <h3>同步状态</h3>
-          <p id="sync-status-text">待同步: 0 条</p>
-          <button id="sync-btn" class="btn-secondary">立即同步</button>
         </div>
         <div class="modal-actions">
           <button id="settings-close" class="btn-primary">关闭</button>
@@ -118,6 +136,6 @@
   <!-- Toast -->
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/app.js"></script>
+  <script src="/app.js?v=9"></script>
 </body>
 </html>

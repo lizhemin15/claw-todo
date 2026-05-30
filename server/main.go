@@ -78,7 +78,7 @@ func main() {
 	// API routes
 	mux.HandleFunc("POST /api/auth/setup", handler.Setup)
 	mux.HandleFunc("POST /api/auth/login", handler.Login)
-	mux.HandleFunc("POST /api/auth/token", handler.GenerateBindToken)
+	mux.HandleFunc("POST /api/auth/token", handler.AuthMiddleware(handler.GenerateBindToken))
 	mux.HandleFunc("GET /api/auth/status", handler.AuthStatus)
 
 	// Todo CRUD (auth required)
