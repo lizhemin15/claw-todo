@@ -575,6 +575,14 @@ func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 // Populated at startup from the skill directory.
 var skillFiles map[string]string
 
+// skillMeta holds parsed frontmatter from SKILL.md for the well-known endpoint.
+var skillMeta struct {
+	Name        string
+	Description string
+	Version     string
+	Files       []string
+}
+
 // WellKnownIndex returns /.well-known/skills/index.json
 func (h *Handler) WellKnownIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -583,15 +591,10 @@ func (h *Handler) WellKnownIndex(w http.ResponseWriter, r *http.Request) {
 	index := map[string]interface{}{
 		"skills": []map[string]interface{}{
 			{
-				"name":        "todo-push",
-				"description": "推送待办事项到 Claw Todo。配对码一键连接，支持离线队列。",
-				"version":     "2.0.0",
-				"files": []string{
-					"SKILL.md",
-					"scripts/setup.py",
-					"scripts/push_todo.py",
-					"references/api.md",
-				},
+				"name":        skillMeta.Name,
+				"description": skillMeta.Description,
+				"version":     skillMeta.Version,
+				"files":       skillMeta.Files,
 			},
 		},
 	}
