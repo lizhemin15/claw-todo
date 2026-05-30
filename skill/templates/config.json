@@ -1,7 +1,0 @@
-{
-  "endpoint": "https://todo.yourdomain.com",
-  "token": "从显示端设置页生成的绑定Token",
-  "offline_queue": "./todo-push-queue.jsonl",
-  "retry_interval": 30,
-  "source": "hermes"
-}

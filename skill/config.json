@@ -1,7 +1,0 @@
-{
-  "endpoint": "https://todo.open-claw.click",
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImFkbWluIiwicm9sZSI6ImFnZW50IiwiZXhwIjoyMDk1NDk3NTU3LCJpYXQiOjE3ODAxMzc1NTd9.0chbX0APV1rrgKrgcgIgbM2Pstkp05Nq8wkB77ajLKA",
-  "offline_queue": "./todo-push-queue.jsonl",
-  "retry_interval": 30,
-  "source": "hermes"
-}
