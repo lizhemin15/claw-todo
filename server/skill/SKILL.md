@@ -56,10 +56,7 @@ Content-Type: application/json
 ```
 POST {endpoint}/api/todos
 Content-Type: application/json
-Authorization: Bearer {token}
-
-{
-  "title": "提交论文修改稿",
+Authorization: Bearer ***  "title": "提交论文修改稿",
   "priority": "urgent",
   "due": "2026-05-30T18:00:00",
   "tags": ["论文"],
@@ -78,30 +75,41 @@ Authorization: Bearer {token}
 
 ## 其他操作
 
+### 获取待办列表
+```
+GET {endpoint}/api/todos
+Authorization: Bearer {token...n```
+**重要：不带 `status` 参数返回所有状态的待办。**
+
+按状态过滤：
+```
+GET {endpoint}/api/todos?status=pending
+GET {endpoint}/api/todos?status=in_progress
+GET {endpoint}/api/todos?status=completed
+GET {endpoint}/api/todos?status=postponed
+```
+
+**四种状态：**
+- `pending` — 待办
+- `in_progress` — 进行中
+- `completed` — 已完成
+- `postponed` — 推迟
+
 ### 标记完成
 ```
 PATCH {endpoint}/api/todos/{id}
-Authorization: Bearer {token}
-Content-Type: application/json
+Authorization: Bearer {token...ype: application/json
 
 {"status": "completed"}
-```
-
-### 获取待办列表
-```
-GET {endpoint}/api/todos?status=pending
-Authorization: Bearer {token}
 ```
 
 ### 删除待办
 ```
 DELETE {endpoint}/api/todos/{id}
-Authorization: Bearer {token}
-```
-
+Authorization: Bearer {token...
 ## 安装
 
-### Hermes 智能体
+### Hermes 智能体（一行命令）
 ```bash
 hermes skills install "well-known:https://todo.open-claw.click/.well-known/skills/todo-push" -y --force
 ```
@@ -126,6 +134,7 @@ python3 push_todo.py push "买牛奶" normal
 - **配对码一次性** — 用过即废（返回410），每个智能体需单独配对
 - **pair/code 需登录Token** — 调 `/api/pair/code` 必须带 Authorization header（用户在网页操作，智能体不需要调这个）
 - **pair/exchange 无需认证** — 只需配对码，任何智能体都能调
+- **获取待办不带 status 参数** — 返回所有状态；带 `?status=pending` 只返回待办列
 - **Go embed 缓存** — 部署前 `touch static/*` 再编译，否则嵌入的静态文件不更新
 - **Steam Deck 密码框** — 用 `type="text"` + 眼睛按钮切换，`type="password"` 不弹虚拟键盘
 - **WebSocket 实时同步** — CREATE/UPDATE/DELETE 秒级推送，无需刷新
