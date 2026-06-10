@@ -108,16 +108,33 @@ func main() {
 	mux.HandleFunc("GET /api/sync/pending", handler.AuthMiddleware(handler.SyncPending))
 	mux.HandleFunc("POST /api/sync/ack", handler.AuthMiddleware(handler.SyncAck))
 
+	// Game State
+	mux.HandleFunc("GET /api/game-state", handler.AuthMiddleware(handler.GetGameState))
+	mux.HandleFunc("POST /api/game-state", handler.AuthMiddleware(handler.SaveGameState))
+
+	// Weather (Beijing)
+	mux.HandleFunc("GET /api/weather", handler.GetWeather)
+
 	// WebSocket
 	mux.HandleFunc("/ws", handler.AuthMiddlewareWS(handler.HandleWebSocket))
 
-	// Static files (embedded)
+	// Static files (embedded) — HTML/SW no-cache, others cache 5min
 	staticFS, err := fs.Sub(staticFiles, "static")
 	if err != nil {
 		log.Fatalf("Failed to create sub filesystem: %v", err)
 	}
 	fileServer := http.FileServer(http.FS(staticFS))
-	mux.Handle("/", fileServer)
+	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// HTML and SW must not be cached (ensures updates take effect immediately)
+		if r.URL.Path == "/" || r.URL.Path == "/index.html" || r.URL.Path == "/sw.js" || r.URL.Path == "/app.js" || r.URL.Path == "/style.css" {
+			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+			w.Header().Set("Pragma", "no-cache")
+			w.Header().Set("Expires", "0")
+		} else {
+			w.Header().Set("Cache-Control", "public, max-age=300")
+		}
+		fileServer.ServeHTTP(w, r)
+	}))
 
 	// CORS middleware for API
 	wrappedMux := CORS(mux)

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -544,6 +545,45 @@ func (h *Handler) SyncAck(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"message": "acknowledged"})
 }
 
+// GetGameState returns the user's game state
+func (h *Handler) GetGameState(w http.ResponseWriter, r *http.Request) {
+	user := r.Header.Get("X-User")
+	var state string
+	err := h.db.QueryRow("SELECT state FROM user_game_state WHERE username = ?", user).Scan(&state)
+	if err != nil {
+		// 没有记录，返回空对象
+		writeJSON(w, http.StatusOK, map[string]interface{}{"state": nil})
+		return
+	}
+	var parsed interface{}
+	json.Unmarshal([]byte(state), &parsed)
+	writeJSON(w, http.StatusOK, map[string]interface{}{"state": parsed})
+}
+
+// SaveGameState saves the user's game state
+func (h *Handler) SaveGameState(w http.ResponseWriter, r *http.Request) {
+	user := r.Header.Get("X-User")
+	var req struct {
+		State interface{} `json:"state"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request"})
+		return
+	}
+	stateJSON, _ := json.Marshal(req.State)
+	_, err := h.db.Exec(`
+		INSERT INTO user_game_state (username, state, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+		ON CONFLICT(username) DO UPDATE SET state = excluded.state, updated_at = CURRENT_TIMESTAMP
+	`, user, string(stateJSON))
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "save failed"})
+		return
+	}
+	// Broadcast game state update to all clients
+	h.hub.Broadcast("game_state_updated", map[string]interface{}{"state": req.State})
+	writeJSON(w, http.StatusOK, map[string]string{"message": "saved"})
+}
+
 // HandleWebSocket handles WebSocket connections
 func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	user := r.Header.Get("X-User")
@@ -636,4 +676,90 @@ func (h *Handler) WellKnownSkillFile(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("Cache-Control", "public, max-age=300")
 	w.Write([]byte(content))
+}
+
+// GetWeather returns Beijing weather and time info
+func (h *Handler) GetWeather(w http.ResponseWriter, r *http.Request) {
+	// Fetch from wttr.in (free, no API key)
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get("https://wttr.in/Beijing?format=j1")
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"error": "weather fetch failed",
+			"scene": "day",
+			"weather": "unknown",
+			"temp": 20,
+			"humidity": 50,
+		})
+		return
+	}
+	defer resp.Body.Close()
+
+	var data struct {
+		CurrentCondition []struct {
+			TempC       string `json:"temp_C"`
+			Humidity    string `json:"humidity"`
+			WeatherDesc []struct{ Value string } `json:"weatherDesc"`
+			WeatherCode string `json:"weatherCode"`
+		} `json:"current_condition"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil || len(data.CurrentCondition) == 0 {
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"scene": "day", "weather": "unknown", "temp": 20, "humidity": 50,
+		})
+		return
+	}
+
+	cc := data.CurrentCondition[0]
+	temp, _ := strconv.Atoi(cc.TempC)
+	humidity, _ := strconv.Atoi(cc.Humidity)
+	weatherDesc := ""
+	if len(cc.WeatherDesc) > 0 {
+		weatherDesc = cc.WeatherDesc[0].Value
+	}
+	weatherCode := cc.WeatherCode
+
+	// Determine weather type
+	weatherType := "clear"
+	descLower := strings.ToLower(weatherDesc)
+	code, _ := strconv.Atoi(weatherCode)
+	switch {
+	case strings.Contains(descLower, "rain") || strings.Contains(descLower, "drizzle") || strings.Contains(descLower, "shower") ||
+		(code >= 200 && code < 400):
+		weatherType = "rain"
+	case strings.Contains(descLower, "snow") || strings.Contains(descLower, "ice") || strings.Contains(descLower, "sleet") ||
+		(code >= 600 && code < 700):
+		weatherType = "snow"
+	case strings.Contains(descLower, "fog") || strings.Contains(descLower, "mist") || strings.Contains(descLower, "haze") ||
+		(code >= 700 && code < 800):
+		weatherType = "fog"
+	case strings.Contains(descLower, "cloud") || strings.Contains(descLower, "overcast") ||
+		(code >= 800 && code < 900 && code != 800):
+		weatherType = "cloudy"
+	}
+
+	// Determine time of day (Beijing = UTC+8)
+	now := time.Now().UTC().Add(8 * time.Hour)
+	hour := now.Hour()
+	var scene string
+	switch {
+	case hour >= 5 && hour < 7:
+		scene = "dawn"
+	case hour >= 7 && hour < 17:
+		scene = "day"
+	case hour >= 17 && hour < 19:
+		scene = "dusk"
+	default:
+		scene = "night"
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"scene":     scene,
+		"weather":   weatherType,
+		"weatherDesc": weatherDesc,
+		"temp":      temp,
+		"humidity":  humidity,
+		"hour":      hour,
+	})
 }

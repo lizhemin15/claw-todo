@@ -81,6 +81,12 @@ func createTables(db *sql.DB) error {
 	);
 
 	CREATE INDEX IF NOT EXISTS idx_pair_expires ON pair_codes(expires_at);
+
+	CREATE TABLE IF NOT EXISTS user_game_state (
+		username TEXT PRIMARY KEY,
+		state TEXT NOT NULL DEFAULT '{}',
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
 	`
 
 	_, err := db.Exec(schema)

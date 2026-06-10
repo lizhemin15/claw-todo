@@ -1,9 +1,22 @@
 # Binary
 claw-todo
 *.exe
+server/claw-todo-new
 
 # Data directory
 data/
+server/data/
+*.db
+*.db-shm
+*.db-wal
+
+# Large assets (use Git LFS or separate hosting)
+server/static/audio/
+server/static/img/
+
+# Backup files
+*.backup
+*.backup_*
 
 # Go
 

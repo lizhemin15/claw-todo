@@ -1,0 +1,3388 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>企鹅岛</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#0a0a1a;font-family:system-ui,sans-serif}
+canvas{display:block;width:100%;height:100%}
+#hud{position:fixed;top:0;left:0;right:0;padding:8px 14px;display:flex;justify-content:space-between;align-items:center;pointer-events:none;z-index:10}
+#hud span{color:#fff;font-size:13px;text-shadow:1px 1px 3px #000}
+#penguin-bubble{position:fixed;color:#fff;font-size:14px;background:rgba(0,0,0,0.75);padding:6px 14px;border-radius:16px;pointer-events:none;opacity:0;transition:opacity 0.2s;z-index:20;max-width:320px;text-align:center;text-shadow:1px 1px 2px #000}
+#penguin-bubble.show{opacity:1}
+#interact-prompt{position:fixed;bottom:120px;left:50%;transform:translateX(-50%);color:#fff;font:bold 16px sans-serif;background:rgba(0,0,0,0.75);padding:8px 18px;border-radius:20px;z-index:50;pointer-events:none;opacity:0;transition:opacity 0.15s;text-shadow:1px 1px 2px #000}
+#crosshair{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:25;pointer-events:none}
+#crosshair::before,#crosshair::after{content:'';position:absolute;background:rgba(255,255,255,0.6)}
+#crosshair::before{width:2px;height:14px;left:-1px;top:-7px}
+#crosshair::after{width:14px;height:2px;left:-7px;top:-1px}
+#crosshair .dot{width:2px;height:2px;background:rgba(255,255,255,0.8);position:absolute;left:-1px;top:-1px;border-radius:50%}
+#controls-hint{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,0.3);font:11px sans-serif;z-index:10;pointer-events:none;transition:opacity 3s}
+#task-panel{position:fixed;right:12px;top:50px;width:260px;max-height:70vh;background:rgba(0,0,0,0.8);border-radius:12px;padding:12px;color:#fff;font-size:13px;z-index:30;display:none;overflow-y:auto;border:1px solid rgba(255,255,255,0.1)}
+#task-panel.show{display:block}
+#task-panel h3{font-size:14px;margin-bottom:8px;opacity:0.7}
+.task-item{padding:6px 8px;margin-bottom:4px;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:6px}
+.task-item:hover{background:rgba(255,255,255,0.1)}
+.task-item.completed{opacity:0.4;text-decoration:line-through}
+.task-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.task-dot.pending{background:#888}
+.task-dot.in_progress{background:#4ecdc4;box-shadow:0 0 6px #4ecdc4}
+.task-dot.completed{background:#6c5ce7}
+.task-title{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#dungeon-ui{position:fixed;inset:0;pointer-events:none;z-index:60;display:none}
+#dungeon-ui.active{display:flex;flex-direction:column;align-items:center;justify-content:center}
+#dungeon-timer{font:bold 72px monospace;color:#fff;text-shadow:0 0 30px rgba(255,100,100,0.5);letter-spacing:4px}
+#dungeon-task-name{font:18px sans-serif;color:rgba(255,255,255,0.7);margin-top:8px}
+#dungeon-progress{width:300px;height:6px;background:rgba(255,255,255,0.15);border-radius:3px;margin-top:16px;overflow:hidden}
+#dungeon-progress-bar{height:100%;background:linear-gradient(90deg,#ff4444,#ff8844);border-radius:3px;transition:width 1s linear;width:0%}
+#dungeon-hint{position:fixed;bottom:40px;color:rgba(255,255,255,0.4);font-size:12px}
+#dungeon-exit{position:fixed;top:16px;right:16px;color:#fff;font-size:14px;background:rgba(0,0,0,0.5);padding:6px 14px;border-radius:12px;pointer-events:auto;cursor:pointer}
+#dungeon-exit:hover{background:rgba(255,255,255,0.2)}
+#scene-indicator{position:fixed;top:40px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,0.5);font-size:11px;z-index:10;pointer-events:none;transition:all 0.5s}
+#ws-status{position:fixed;bottom:8px;right:8px;width:8px;height:8px;border-radius:50%;z-index:10;pointer-events:none}
+#ws-status.online{background:#4ecdc4;box-shadow:0 0 6px #4ecdc4}
+#ws-status.offline{background:#666}
+/* 虚拟手柄 — CSS media query 控制：≤1024px（平板竖屏及以下）显示 */
+#touch-controls{position:fixed;inset:0;z-index:100;pointer-events:none;display:none}
+#touch-controls>*{pointer-events:auto}
+@media (max-width:1024px){#touch-controls{display:block}}
+#joystick-zone{position:absolute;bottom:40px;left:40px;width:160px;height:160px;pointer-events:auto}
+#joystick-base{position:absolute;inset:0;border-radius:50%;background:rgba(255,255,255,0.08);border:2px solid rgba(255,255,255,0.15)}
+#joystick-thumb{position:absolute;width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,0.2);border:2px solid rgba(255,255,255,0.3);top:50%;left:50%;transform:translate(-50%,-50%);transition:background 0.1s}
+#joystick-thumb.active{background:rgba(255,255,255,0.35)}
+#btn-jump{position:absolute;bottom:60px;right:30px;width:90px;height:90px;border-radius:50%;background:rgba(255,255,255,0.12);border:3px solid rgba(255,255,255,0.25);pointer-events:auto;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.7);font:bold 18px sans-serif;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+#btn-jump:active{background:rgba(255,255,255,0.3)}
+#touch-look-zone{position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:auto;touch-action:none;z-index:0}
+#joystick-zone{z-index:1}
+#btn-jump{z-index:1}
+/* 任务详情面板 */
+#tree-detail{position:fixed;inset:0;z-index:200;display:none;align-items:center;justify-content:center}
+#tree-detail.show{display:flex}
+#tree-detail-bg{position:absolute;inset:0;background:rgba(0,0,0,0.6)}
+#tree-detail-card{position:relative;background:rgba(20,20,40,0.95);border:1px solid rgba(255,255,255,0.15);border-radius:16px;padding:24px;max-width:420px;width:90%;max-height:80vh;overflow-y:auto;color:#fff;box-shadow:0 8px 40px rgba(0,0,0,0.5)}
+#tree-detail-close{position:absolute;top:12px;right:14px;font-size:20px;cursor:pointer;opacity:0.6;transition:opacity 0.15s}
+#tree-detail-close:hover{opacity:1}
+#tree-detail-status{font-size:13px;margin-bottom:6px;opacity:0.7}
+#tree-detail-title{font-size:20px;margin:0 0 12px;line-height:1.3}
+#tree-detail-desc{font-size:14px;opacity:0.7;margin-bottom:16px;line-height:1.5;white-space:pre-wrap}
+#tree-detail-meta{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px}
+#tree-detail-meta .meta-item{background:rgba(255,255,255,0.08);border-radius:8px;padding:6px 12px;font-size:12px}
+#tree-detail-meta .meta-item .label{opacity:0.5;margin-right:4px}
+#tree-detail-actions{display:flex;gap:8px;flex-wrap:wrap}
+#tree-detail-actions button{flex:1;min-width:80px;padding:10px 16px;border:none;border-radius:10px;font:bold 14px sans-serif;cursor:pointer;transition:transform 0.1s,opacity 0.1s}
+#tree-detail-actions button:active{transform:scale(0.96)}
+#tree-detail-actions .btn-start{background:#4ecdc4;color:#000}
+#tree-detail-actions .btn-complete{background:#6c5ce7;color:#fff}
+#tree-detail-actions .btn-pending{background:#555;color:#ccc}
+
+/* 传送门任务选择面板 */
+#portal-panel{position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:9999;display:none;align-items:center;justify-content:center}
+#portal-panel.show{display:flex;animation:portalIn 0.25s ease}
+@keyframes portalIn{from{opacity:0;transform:scale(0.92)}to{opacity:1;transform:scale(1)}}
+#portal-panel-bg{position:absolute;inset:0;background:rgba(0,0,0,0.5)}
+#portal-panel-content{position:relative;display:flex;gap:16px;flex-wrap:wrap;justify-content:center;max-width:700px;padding:20px;background:rgba(5,5,25,0.95);border:1px solid rgba(100,150,255,0.3);border-radius:16px;box-shadow:0 0 60px rgba(80,120,255,0.15)}
+.portal-task-card{background:rgba(10,10,30,0.9);border:1px solid rgba(255,255,255,0.15);border-radius:14px;padding:16px;width:200px;cursor:pointer;transition:all 0.2s;color:#fff;text-align:center}
+.portal-task-card:hover{transform:translateY(-4px);border-color:rgba(255,255,255,0.4);box-shadow:0 8px 30px rgba(100,200,255,0.2)}
+.portal-task-card .card-icon{font-size:28px;margin-bottom:8px}
+.portal-task-card .card-title{font-size:14px;font-weight:bold;margin-bottom:4px;line-height:1.3}
+.portal-task-card .card-meta{font-size:11px;opacity:0.5}
+.portal-task-card.pending{border-color:rgba(136,136,136,0.3)}
+.portal-task-card.in_progress{border-color:rgba(78,205,196,0.5);box-shadow:0 0 20px rgba(78,205,196,0.1)}
+.portal-task-card.focused{transform:translateY(-6px);border-color:rgba(255,255,255,0.6)!important;box-shadow:0 0 30px rgba(150,200,255,0.4)!important;outline:2px solid rgba(255,255,255,0.5);outline-offset:4px}
+#portal-panel-close{position:absolute;top:-30px;right:0;color:rgba(255,255,255,0.5);font-size:14px;cursor:pointer}
+#portal-panel-close:hover{color:#fff}
+/* 番茄钟空间 HUD */
+#pomo-space-ui{position:fixed;inset:0;pointer-events:none;z-index:9998;display:none}
+#pomo-space-ui.active{display:block}
+#pomo-space-timer{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font:bold 64px monospace;color:#fff;text-shadow:0 0 40px rgba(100,200,255,0.6);letter-spacing:4px}
+#pomo-space-task{position:absolute;top:calc(50% + 50px);left:50%;transform:translateX(-50%);font:16px sans-serif;color:rgba(255,255,255,0.6)}
+#pomo-space-hint{position:absolute;bottom:40px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,0.45);font-size:12px;display:flex;gap:14px;flex-wrap:wrap;justify-content:center}
+.key-hint{display:flex;align-items:center;gap:4px;white-space:nowrap}
+.key-hint kbd{display:inline-block;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:4px;padding:1px 6px;font:11px monospace;color:rgba(255,255,255,0.7)}
+#pomo-space-bgm-name{position:absolute;top:calc(50% + 80px);left:50%;transform:translateX(-50%);font:14px sans-serif;color:rgba(255,255,255,0.5);transition:all 0.3s}
+#pomo-space-exit{position:absolute;top:16px;right:16px;color:#fff;font-size:14px;background:rgba(0,0,0,0.5);padding:6px 14px;border-radius:12px;pointer-events:auto;cursor:pointer}
+#pomo-space-exit:hover{background:rgba(255,255,255,0.2)}
+#pomo-space-actions{position:absolute;bottom:80px;left:50%;transform:translateX(-50%);display:flex;gap:12px;pointer-events:auto}
+#pomo-space-actions button{padding:10px 20px;border:none;border-radius:10px;font:bold 14px sans-serif;cursor:pointer;transition:transform 0.1s}
+#pomo-space-actions button:active{transform:scale(0.95)}
+#pomo-space-actions .btn-pause{background:rgba(255,255,255,0.15);color:#fff}
+#pomo-space-actions .btn-complete{background:#6c5ce7;color:#fff}
+#pomo-space-actions .btn-note{background:rgba(78,205,196,0.3);color:#fff}
+</style>
+</head>
+<body>
+<canvas id="game-canvas"></canvas>
+<div id="hud">
+  <span id="penguin-info">🐧 少年 · 😊</span>
+  <span id="scene-label">☀️ 白天</span>
+  <span id="fish-count">🐟 0</span>
+</div>
+<div id="scene-indicator"></div>
+<div id="penguin-bubble"></div>
+<div id="interact-prompt"></div>
+<div id="crosshair"><div class="dot"></div></div>
+<div id="controls-hint">WASD移动 · 鼠标视角 · 空格跳跃 · Enter交互 · Tab任务</div>
+<div id="task-panel"><h3>📋 任务列表</h3><div id="task-list"></div></div>
+<div id="dungeon-ui">
+  <div id="dungeon-timer">25:00</div>
+  <div id="dungeon-task-name"></div>
+  <div id="dungeon-progress"><div id="dungeon-progress-bar"></div></div>
+  <div id="dungeon-hint">B 退出副本</div>
+  <div id="dungeon-exit">✕ 退出</div>
+</div>
+<!-- 任务详情面板 — 走近树按Enter弹出 -->
+<div id="tree-detail">
+  <div id="tree-detail-bg" onclick="closeTreeDetail()"></div>
+  <div id="tree-detail-card">
+    <div id="tree-detail-close" onclick="closeTreeDetail()">✕</div>
+    <div id="tree-detail-status"></div>
+    <h2 id="tree-detail-title"></h2>
+    <div id="tree-detail-desc"></div>
+    <div id="tree-detail-meta"></div>
+    <div id="tree-detail-actions"></div>
+  </div>
+
+<!-- 传送门任务选择面板 -->
+<div id="portal-panel">
+  <div id="portal-panel-bg" onclick="hidePortalPanel()"></div>
+  <div id="portal-panel-content">
+    <div id="portal-panel-close" onclick="hidePortalPanel()">✕ 关闭</div>
+  </div>
+</div>
+<!-- 番茄钟空间 HUD -->
+<div id="pomo-space-ui">
+  <div id="pomo-space-timer">25:00</div>
+  <div id="pomo-space-task"></div>
+  <div id="pomo-space-bgm-name"></div>
+  <div id="pomo-space-hint">
+    <span class="key-hint"><kbd>←→</kbd> BGM</span>
+    <span class="key-hint"><kbd>↑↓</kbd> 音量</span>
+    <span class="key-hint"><kbd>A</kbd> 录音</span>
+    <span class="key-hint"><kbd>⏎</kbd> 暂停</span>
+    <span class="key-hint"><kbd>X</kbd> 笔记</span>
+    <span class="key-hint"><kbd>Y</kbd> 完成</span>
+    <span class="key-hint"><kbd>B</kbd> 退出</span>
+  </div>
+  <div id="pomo-space-exit" onclick="exitPomoSpace()">✕ 退出</div>
+  <div id="pomo-space-actions">
+    <button class="btn-pause" id="btn-pomo-pause" onclick="togglePomoPause()">⏯️ 暂停</button>
+    <button class="btn-note" id="btn-pomo-note" onclick="addPomoNote()">📝 笔记</button>
+    <button class="btn-complete" id="btn-pomo-complete" onclick="completePomoEarly()">✅ 完成</button>
+  </div>
+</div>
+</div>
+<div id="ws-status" class="offline"></div>
+<div id="touch-controls">
+  <div id="joystick-zone">
+    <div id="joystick-base"></div>
+    <div id="joystick-thumb"></div>
+  </div>
+  <div id="touch-look-zone"></div>
+  <div id="btn-jump">跳</div>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+// ═══════════════════ 数据源 ═══════════════════
+const API_BASE = '';
+const token = localStorage.getItem('token') || new URLSearchParams(location.search).get('token') || '';
+let ws = null;
+let todos = [];
+let gameState = { level:1, xp:0, totalPomo:0, todayPomo:0, todayWorkouts:0, todayMeditations:0, combo:0, streak:0 };
+let pomoState = { active:false, paused:false, state:'idle', remaining:0, total:0 };
+
+async function apiFetch(path, opts={}) {
+  const res = await fetch(API_BASE + path, {
+    ...opts,
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...opts.headers }
+  });
+  return res.json();
+}
+async function loadTodos() {
+  try { const res = await apiFetch('/api/todos'); todos = res.todos || res || []; syncTaskBuildings(); } catch(e) {}
+}
+async function loadGameState() {
+  try { const res = await apiFetch('/api/game-state'); if (res.state) { gameState = { ...gameState, ...res.state }; updateHUD(); } } catch(e) {}
+}
+function connectWS() {
+  if (!token) return;
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${proto}//${location.host}/ws?token=${token}`);
+  ws.onopen = () => { document.getElementById('ws-status').className = 'online'; loadTodos(); loadGameState(); };
+  ws.onclose = () => { document.getElementById('ws-status').className = 'offline'; setTimeout(connectWS, 3000); };
+  ws.onerror = () => {};
+  ws.onmessage = event => {
+    try {
+      const msg = JSON.parse(event.data);
+      if (msg.type === 'todo_created') { todos.unshift(msg.payload); syncTaskBuildings(); }
+      else if (msg.type === 'todo_updated') { const idx = todos.findIndex(t => t.id === msg.payload.id); if (idx >= 0) todos[idx] = msg.payload; syncTaskBuildings(); }
+      else if (msg.type === 'todo_deleted') { todos = todos.filter(t => t.id !== msg.payload.id); syncTaskBuildings(); }
+      else if (msg.type === 'game_state_updated') { if (msg.payload?.state) { gameState = { ...gameState, ...msg.payload.state }; updateHUD(); } }
+    } catch(e) {}
+  };
+}
+async function apiUpdateTodo(id, patch) { await apiFetch(`/api/todos/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }); }
+async function apiSaveGameState() { await apiFetch('/api/game-state', { method: 'POST', body: JSON.stringify({ state: gameState }) }); }
+
+// ═══════════════════ 分形树系统 ═══════════════════
+function pushTriangle(indices, a, b, c) { indices.push(a, b, c); }
+function pushQuad(indices, a, b, c, d) { indices.push(a, b, c, a, c, d); }
+function hsvToRgb(h, s, v) {
+  const c = v * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = v - c;
+  let rp, gp, bp;
+  if (h < 60) [rp, gp, bp] = [c, x, 0];
+  else if (h < 120) [rp, gp, bp] = [x, c, 0];
+  else if (h < 180) [rp, gp, bp] = [0, c, x];
+  else if (h < 240) [rp, gp, bp] = [0, x, c];
+  else if (h < 300) [rp, gp, bp] = [x, 0, c];
+  else [rp, gp, bp] = [c, 0, x];
+  return [rp + m, gp + m, bp + m];
+}
+
+// ═══════════════════ 多形态分形树 ═══════════════════
+function createFractalTree(seed = 42, iterations = 4, trunkH = 3.0, hue = 120) {
+  let s = seed;
+  function rnd() { s = (s * 16807 + 0) % 2147483647; return s / 2147483647; }
+
+  const positions = [], indices = [];
+  const branchAngle = 1.2 + rnd() * 1.0;    // 69°~126° 大幅张开，像真实的阔叶树
+  const branchShrink = 0.55 + rnd() * 0.15; // 子枝更短
+  const gravitropism = 0.25 + rnd() * 0.3;  // 更强弯曲
+  const canopySize = 0.7 + rnd() * 0.9;     // 更大树冠球
+
+  // 扁六边形叶子（更像真实树叶）
+  function addCanopyCluster(cx, cy, cz, radius, count) {
+    for (let k = 0; k < count; k++) {
+      const theta = rnd() * Math.PI * 2;
+      const phi = Math.acos(2 * rnd() - 1);
+      const r = radius * (0.3 + rnd() * 0.7);
+      const sx = cx + Math.sin(phi) * Math.cos(theta) * r;
+      const sy = cy + Math.sin(phi) * Math.sin(theta) * r;
+      const sz = cz + Math.cos(phi) * r;
+      const sr = radius * (0.12 + rnd() * 0.25);
+      // 扁六边形 — 宽而薄，扁在 XZ 平面
+      const leafBase = positions.length / 3;
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        positions.push(sx + Math.cos(a) * sr, sy + Math.sin(a) * sr * 0.3, sz);
+      }
+      // 随机轻微旋转
+      const rotY = rnd() * Math.PI;
+      for (let i = leafBase; i < leafBase + 6; i++) {
+        const px = positions[i * 3] - sx, py = positions[i * 3 + 1] - sy, pz = positions[i * 3 + 2] - sz;
+        positions[i * 3] = sx + px * Math.cos(rotY) - pz * Math.sin(rotY);
+        positions[i * 3 + 2] = sz + px * Math.sin(rotY) + pz * Math.cos(rotY);
+      }
+      pushTriangle(indices, leafBase, leafBase + 1, leafBase + 2);
+      pushTriangle(indices, leafBase, leafBase + 2, leafBase + 3);
+      pushTriangle(indices, leafBase, leafBase + 3, leafBase + 4);
+      pushTriangle(indices, leafBase, leafBase + 4, leafBase + 5);
+    }
+  }
+
+  // 递归生长
+  function grow(x, y, z, len, radius, angle, tilt, depth, bend) {
+    if (depth <= 0 || len < 0.06) {
+      addCanopyCluster(x, y, z, canopySize * 0.4, 8 + Math.floor(rnd() * 6));
+      return;
+    }
+
+    // 弯曲：每段有微小方向偏移
+    const bendAngle = bend * gravitropism;
+    const actualAngle = angle + bendAngle * 0.3;
+    const actualTilt = tilt + bendAngle * 0.2 + (rnd() - 0.5) * 0.15;
+
+    const cosA = Math.cos(actualAngle), sinA = Math.sin(actualAngle);
+    const cosT = Math.cos(actualTilt), sinT = Math.sin(actualTilt);
+    const dx = sinA * cosT, dz = cosA * cosT, dy = sinT;
+    const ex = x + dx * len, ey = y + dy * len, ez = z + dz * len;
+
+    // 管状段（8边形，更圆润）
+    const base = positions.length / 3;
+    const sides = 8;
+    const segs = 3;
+    for (let si = 0; si <= segs; si++) {
+      const t = si / segs;
+      const px = x + dx * len * t, py = y + dy * len * t, pz = z + dz * len * t;
+      const rr = radius * (1 - t * 0.25);
+      // 法向量计算
+      const bx = -dz, by = 0, bz = dx;
+      const bl = Math.sqrt(bx * bx + bz * bz) || 1;
+      const nx = bx / bl, ny = 0, nz = bz / bl;
+      const cx = -nz * dy, cy = nz * dx - nx * dz, cz = nx * dy;
+      for (let j = 0; j < sides; j++) {
+        const a = (j / sides) * Math.PI * 2;
+        positions.push(
+          px + (nx * Math.cos(a) + cx * Math.sin(a)) * rr,
+          py + (ny * Math.cos(a) + cy * Math.sin(a)) * rr,
+          pz + (nz * Math.cos(a) + cz * Math.sin(a)) * rr
+        );
+      }
+    }
+    for (let si = 0; si < segs; si++) {
+      for (let j = 0; j < sides; j++) {
+        const a = base + si * sides + j, b = base + si * sides + (j + 1) % sides;
+        const c = base + (si + 1) * sides + j, d = base + (si + 1) * sides + (j + 1) % sides;
+        pushQuad(indices, a, b, d, c);
+      }
+    }
+
+    // 子枝：4-6个，螺旋分布，更茂密
+    const childLen = len * branchShrink;
+    const childRadius = radius * 0.6;
+    const numBranches = depth > 2 ? (4 + Math.floor(rnd() * 3)) : (depth > 1 ? 4 : 3);
+
+    if (numBranches > 0) {
+      for (let i = 0; i < numBranches; i++) {
+        // 螺旋分布 + 随机偏移
+        const phi = (i / numBranches) * Math.PI * 2 + rnd() * 0.5;
+        const spread = branchAngle * (0.6 + rnd() * 0.4);
+        const childAngle = actualAngle + Math.cos(phi) * spread;
+        const childTilt = actualTilt + Math.sin(phi) * spread * 0.7;
+        // 末端产生树冠
+        const isTerminal = depth <= 2;
+        const growLen = isTerminal ? childLen * 0.5 : childLen;
+        grow(ex, ey, ez, growLen, childRadius, childAngle, childTilt, depth - 1, bend + (rnd() - 0.5) * 0.3);
+      }
+    } else {
+      // 最外层：直接长树冠
+      addCanopyCluster(ex, ey, ez, canopySize * (0.3 + depth * 0.2), 6 + Math.floor(rnd() * 5));
+    }
+  }
+
+  // 从根部开始，初始向上
+  grow(0, 0, 0, trunkH, 0.15, 0, Math.PI / 2, iterations, 0);
+
+  // 顶点颜色
+  const vCount = positions.length / 3;
+  const colors = new Float32Array(vCount * 3);
+  for (let i = 0; i < vCount; i++) {
+    const y = positions[i * 3 + 1];
+    const yNorm = Math.max(0, Math.min(1, y / (trunkH * 1.4)));
+    // 低处=树皮色(棕)，高处=叶色(绿/红/橙)
+    const trunkSat = 0.6 - yNorm * 0.3;
+    const trunkVal = 0.25 + yNorm * 0.35;
+    const h = hue + yNorm * 30 + Math.sin(seed + i * 0.5) * 12;
+    const [r, g, b] = hsvToRgb(h, trunkSat, trunkVal);
+    colors[i * 3] = r; colors[i * 3 + 1] = g; colors[i * 3 + 2] = b;
+  }
+
+  return {
+    positions: new Float32Array(positions),
+    indices: new Uint32Array(indices),
+    colors,
+    height: trunkH
+  };
+}
+
+// 区域配色常量
+const ZONE_COLORS = {
+  workshop: { hue: 200, sat: 0.7, val: 0.8, emissive: 0x224466 },
+  academy:  { hue: 170, sat: 0.6, val: 0.75, emissive: 0x224433 },
+  sports:   { hue: 15, sat: 0.8, val: 0.85, emissive: 0x442211 },
+  living:   { hue: 35, sat: 0.7, val: 0.8, emissive: 0x443322 },
+};
+
+// 布局用：每个树落在独立的岛屿上，按状态分三个区域
+const zoneCounters = { pending: 0, in_progress: 0, completed: 0 };
+
+function getSlotPos(zone, idx) {
+  const z = ZONES[zone];
+  if (!z) return new THREE.Vector3(0, 0, 0);
+  const baseAngle = z.angle;
+  // 紧凑排列：间距5，起始3，同状态树聚成小树林
+  const chunkDist = idx * 5 + 3;
+  const cx = Math.round(Math.cos(baseAngle) * chunkDist);
+  const cz = Math.round(Math.sin(baseAngle) * chunkDist);
+  const center = getIslandCenter(cx, cz);
+  return new THREE.Vector3(center.x, 0, center.z);
+}
+
+function syncTaskBuildings() {
+  const activeIds = new Set(todos.map(t => t.id));
+  for (const [id, e] of taskMeshes) {
+    if (!activeIds.has(id)) { scene.remove(e.group); taskMeshes.delete(id); }
+  }
+  for (const k of Object.keys(zoneCounters)) zoneCounters[k] = 0;
+  interactables.length = 0;
+  colliders.length = 0;
+  registerFixedInteractables();
+
+  todos.forEach(t => {
+    const zone = getZone(t);
+    const idx = zoneCounters[zone]++;
+    const pos = getSlotPos(zone, idx);
+
+    if (taskMeshes.has(t.id)) {
+      scene.remove(taskMeshes.get(t.id).group);
+    }
+
+    // 每棵树独一无二：用 task.id 的 hash 做种子
+    const seed = (t.id || 'task').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+    const isCompleted = t.status === 'completed';
+    const isActive = t.status === 'in_progress';
+    const isPending = t.status === 'pending';
+
+    // 按状态决定色调：pending=灰绿, in_progress=青色, completed=紫金
+    const baseHue = isCompleted ? 280 : (isActive ? 180 : 40);
+    const hue = baseHue + (seed % 40) - 20;
+    const iterations = isActive ? 5 : (isCompleted ? 4 : 3);
+    const trunkH = isActive ? 3.5 : (isCompleted ? 2.5 : 2);
+
+    const treeData = createFractalTree(seed, iterations, trunkH, hue);
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(treeData.positions, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(treeData.colors, 3));
+    geo.setIndex(new THREE.BufferAttribute(treeData.indices, 1));
+    geo.computeVertexNormals();
+
+    const opacity = isCompleted ? 0.5 : (isPending ? 0.8 : 1.0);
+
+    const mat = new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 0.55,
+      metalness: 0.05,
+      transparent: true,
+      opacity,
+      emissive: isActive ? 0x226666 : (isCompleted ? 0x221133 : 0x000000),
+      emissiveIntensity: isActive ? 0.3 : (isCompleted ? 0.15 : 0),
+    });
+
+    const group = new THREE.Group();
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+
+    // 进行中光环
+    if (isActive) {
+      const ringGeo = new THREE.TorusGeometry(0.5, 0.04, 8, 16);
+      const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0x4ecdc4, transparent: true, opacity: 0.5 }));
+      ring.position.y = treeData.height + 0.3;
+      ring.rotation.x = Math.PI / 2;
+      group.add(ring);
+    }
+
+    group.position.copy(pos);
+    scene.add(group);
+
+    const baseH = treeData.height;
+    taskMeshes.set(t.id, { group, baseH, pos, task: t });
+
+    const actionLabel = t.status === 'completed' ? '✅ 已完成' : '📋 查看详情';
+    // 交互球心放在树中间高度，范围覆盖整棵树
+    const interactCenter = new THREE.Vector3(pos.x, trunkH * 0.5, pos.z);
+    const entry = { pos: interactCenter.clone(), range: trunkH + 2, label: actionLabel, action: () => openTreeDetail(t), radius: 1.5, topY: baseH + 2, isTree: true };
+    interactables.push(entry);
+    registerCollider(pos, 1);
+  });
+  console.log(`[树] 同步完成: ${todos.length} 个任务, ${interactables.length} 个可交互对象`);
+}
+
+// ═══════════════════ 无限地图系统 ═══════════════════
+// Perlin 噪声实现
+class PerlinNoise {
+  constructor(seed = 42) {
+    this.perm = new Uint8Array(512);
+    const p = new Uint8Array(256);
+    for (let i = 0; i < 256; i++) p[i] = i;
+    // Fisher-Yates shuffle with seed
+    let s = seed;
+    for (let i = 255; i > 0; i--) {
+      s = (s * 16807 + 0) % 2147483647;
+      const j = s % (i + 1);
+      [p[i], p[j]] = [p[j], p[i]];
+    }
+    for (let i = 0; i < 512; i++) this.perm[i] = p[i & 255];
+  }
+
+  grad(hash, x, y) {
+    const h = hash & 3;
+    const u = h < 2 ? x : y;
+    const v = h < 2 ? y : x;
+    return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
+  }
+
+  noise2D(x, y) {
+    const X = Math.floor(x) & 255, Y = Math.floor(y) & 255;
+    const xf = x - Math.floor(x), yf = y - Math.floor(y);
+    const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+    const p = this.perm;
+    const aa = p[p[X] + Y], ab = p[p[X] + Y + 1];
+    const ba = p[p[X + 1] + Y], bb = p[p[X + 1] + Y + 1];
+    const x1 = this.grad(aa, xf, yf), x2 = this.grad(ba, xf - 1, yf);
+    const y1 = this.grad(ab, xf, yf - 1), y2 = this.grad(bb, xf - 1, yf - 1);
+    const lerpX1 = x1 + u * (x2 - x1), lerpX2 = y1 + u * (y2 - y1);
+    return lerpX1 + v * (lerpX2 - lerpX1);
+  }
+
+  fbm(x, y, octaves = 4, lacunarity = 2.0, gain = 0.5) {
+    let val = 0, amp = 1, freq = 1, max = 0;
+    for (let i = 0; i < octaves; i++) {
+      val += this.noise2D(x * freq, y * freq) * amp;
+      max += amp;
+      amp *= gain;
+      freq *= lacunarity;
+    }
+    return val / max;
+  }
+}
+
+const perlin = new PerlinNoise(137);
+
+// 岛屿块管理
+const ISLAND_CHUNK_SIZE = 30;
+const ISLAND_SPACING = 25;
+const VISIBLE_RANGE = 2; // 可见块范围
+const loadedChunks = new Map();
+
+function getChunkKey(cx, cz) { return `${cx},${cz}`; }
+
+function getIslandHeight(wx, wz) {
+  // 大尺度地形：多个正弦波 + Perlin 噪声
+  const base = perlin.fbm(wx * 0.03, wz * 0.03, 4) * 4;
+  const detail = perlin.fbm(wx * 0.1, wz * 0.1, 3) * 1.5;
+  const ridge = 1 - Math.abs(perlin.noise2D(wx * 0.05 + 100, wz * 0.05 + 100)) * 2;
+  return base + detail + ridge * 0.5;
+}
+
+function getIslandCenter(chunkX, chunkZ) {
+  // 每个块的中心位置由噪声决定
+  const cx = chunkX * ISLAND_SPACING + perlin.noise2D(chunkX * 0.7, chunkZ * 0.7) * 5;
+  const cz = chunkZ * ISLAND_SPACING + perlin.noise2D(chunkX * 0.7 + 50, chunkZ * 0.7 + 50) * 5;
+  return { x: cx, z: cz };
+}
+
+function createIslandMesh(cx, cz) {
+  // 不创建岛屿网格，树直接长在海面上
+  // 只返回位置信息供其他系统使用
+  const center = getIslandCenter(cx, cz);
+  const group = new THREE.Group();
+  group.position.set(center.x, -0.05, center.z);
+  scene.add(group);
+  return { group, center, radius: 0, height: -0.05 };
+}
+
+function getCurrentChunk(wx, wz) {
+  return {
+    cx: Math.round(wx / ISLAND_SPACING),
+    cz: Math.round(wz / ISLAND_SPACING)
+  };
+}
+
+function updateChunks(penguinWorldPos) {
+  const { cx, cz } = getCurrentChunk(penguinWorldPos.x, penguinWorldPos.z);
+  const needed = new Set();
+
+  for (let dx = -VISIBLE_RANGE; dx <= VISIBLE_RANGE; dx++) {
+    for (let dz = -VISIBLE_RANGE; dz <= VISIBLE_RANGE; dz++) {
+      const key = getChunkKey(cx + dx, cz + dz);
+      needed.add(key);
+      if (!loadedChunks.has(key)) {
+        const island = createIslandMesh(cx + dx, cz + dz);
+        scene.add(island.group);
+        loadedChunks.set(key, island);
+      }
+    }
+  }
+
+  // 卸载远处块
+  for (const [key, island] of loadedChunks) {
+    if (!needed.has(key)) {
+      scene.remove(island.group);
+      loadedChunks.delete(key);
+    }
+  }
+}
+
+// ═══════════════════ 文字系统（修复版） ═══════════════════
+function makeTextSprite(text, opts = {}) {
+  const fontSize = opts.fontSize || 28;
+  const maxWidth = opts.maxWidth || 400;
+  const c = document.createElement('canvas');
+  const ctx = c.getContext('2d');
+  ctx.font = `bold ${fontSize}px "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif`;
+
+  // 测量文本实际宽度
+  const metrics = ctx.measureText(text);
+  const textWidth = metrics.width;
+  const padding = fontSize * 0.5;
+
+  // 自适应 Canvas 大小
+  const cw = Math.max(128, Math.ceil(textWidth + padding * 2));
+  const ch = Math.ceil(fontSize * 1.8);
+  c.width = cw;
+  c.height = ch;
+
+  // 重新设置（canvas resize 会重置 context）
+  ctx.font = `bold ${fontSize}px "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  // 文字阴影
+  ctx.shadowColor = 'rgba(0,0,0,0.8)';
+  ctx.shadowBlur = 4;
+  ctx.shadowOffsetX = 1;
+  ctx.shadowOffsetY = 1;
+
+  // 描边
+  ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+  ctx.lineWidth = Math.max(2, fontSize * 0.08);
+  ctx.strokeText(text, cw / 2, ch / 2);
+
+  // 填充
+  ctx.fillStyle = opts.color || '#ffffff';
+  ctx.fillText(text, cw / 2, ch / 2);
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: false });
+  const sprite = new THREE.Sprite(mat);
+
+  // 根据 Canvas 比例设置 scale
+  const aspect = cw / ch;
+  const baseH = opts.scale || 2;
+  sprite.scale.set(baseH * aspect, baseH, 1);
+  return sprite;
+}
+
+// 木牌子：文字贴图面板 + 木框支架
+function createSignBoard(text, opts = {}) {
+  const fontSize = 36;
+  const maxChars = 14;
+  const displayText = text.length > maxChars ? text.slice(0, maxChars) + '…' : text;
+
+  const c = document.createElement('canvas');
+  const ctx = c.getContext('2d');
+  ctx.font = `bold ${fontSize}px "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif`;
+
+  const metrics = ctx.measureText(displayText);
+  const textW = metrics.width;
+  const pad = fontSize * 0.6;
+  const cw = Math.ceil(textW + pad * 2);
+  const ch = Math.ceil(fontSize * 1.6);
+  c.width = cw;
+  c.height = ch;
+
+  // 重新设置
+  ctx.font = `bold ${fontSize}px "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  // 背景木板色
+  const bgColor = opts.bgColor || '#332211';
+  ctx.fillStyle = bgColor;
+  roundRect(ctx, 8, 8, cw - 16, ch - 16, 12);
+  ctx.fill();
+
+  // 边框
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.lineWidth = 3;
+  roundRect(ctx, 8, 8, cw - 16, ch - 16, 12);
+  ctx.stroke();
+
+  // 文字
+  ctx.shadowColor = 'rgba(0,0,0,0.9)';
+  ctx.shadowBlur = 6;
+  ctx.shadowOffsetX = 2;
+  ctx.shadowOffsetY = 2;
+  ctx.fillStyle = opts.color || '#fff';
+  ctx.fillText(displayText, cw / 2, ch / 2);
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+
+  const realW = cw / 128;
+  const realH = ch / 128;
+
+  const group = new THREE.Group();
+
+  // 面板
+  const panelGeo = new THREE.PlaneGeometry(realW, realH);
+  const panelMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide, depthWrite: false });
+  const panel = new THREE.Mesh(panelGeo, panelMat);
+
+  // 木框（略大的边框平面，深色）
+  const frameGeo = new THREE.PlaneGeometry(realW + 0.08, realH + 0.08);
+  const frameMat = new THREE.MeshBasicMaterial({ color: 0x3d2817, side: THREE.DoubleSide, depthWrite: false, transparent: true, opacity: 0.8 });
+  const frame = new THREE.Mesh(frameGeo, frameMat);
+  frame.position.z = -0.01;
+  group.add(frame);
+
+  group.add(panel);
+
+  // 支架：两根小木棍
+  const stickGeo = new THREE.CylinderGeometry(0.02, 0.02, realH * 0.5, 6);
+  const stickMat = new THREE.MeshStandardMaterial({ color: 0x5c3a1e, roughness: 0.7 });
+  const stickL = new THREE.Mesh(stickGeo, stickMat);
+  stickL.position.set(-realW * 0.35, -realH * 0.7, 0.02);
+  group.add(stickL);
+  const stickR = new THREE.Mesh(stickGeo, stickMat);
+  stickR.position.set(realW * 0.35, -realH * 0.7, 0.02);
+  group.add(stickR);
+
+  // 微微前倾
+  group.rotation.x = -0.15;
+
+  return group;
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function makeIconSprite(emoji, size = 1.2) {
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 128;
+  const ctx = c.getContext('2d');
+  ctx.font = '80px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(emoji, 64, 64);
+  const tex = new THREE.CanvasTexture(c);
+  tex.minFilter = THREE.LinearFilter;
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(size, size, 1);
+  return sprite;
+}
+
+// ═══════════════════ 状态 ═══════════════════
+let fish = 0, penguinGrowth = 10, penguinMood = 50;
+let currentScene = 'day';
+let inDungeon = false;
+let dungeonTask = null;
+
+// 传送门 + 番茄钟空间
+let portalGroup = null, portalParticles = null, portalRings = [];
+let inPortalRange = false;
+let inPomoSpace = false;
+let pomoSpaceGroup = null;
+let pomoSpaceTask = null;
+let pomoSpaceStarField = null;
+let pomoSpaceTimerOrb = null;
+let pomoSpaceRingRings = [];
+let pomoSpaceProgressTower = null;
+let pomoSpaceParticles = null;
+let pomoSpaceEnvGroup = null; // 环境特效组（雨/海浪/篝火等）
+let pomoSpaceEnvParticles = null;
+let pomoSpaceCamAngleH = 0, pomoSpaceCamAngleV = 0.4, pomoSpaceCamDist = 12;
+let pomoNotes = [];
+let pomoSpaceAudioCtx = null;
+// 番茄钟空间相机目标点
+const pomoSpaceCamTarget = new THREE.Vector3(0, 2.5, 0);
+const taskMeshes = new Map();
+const interactables = [];
+const colliders = [];
+
+// ═══════════════════ Three.js ═══════════════════
+const canvas = document.getElementById('game-canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+
+const scene = new THREE.Scene();
+// 雾：用浅蓝背景色代替，天空球跟随相机
+scene.background = new THREE.Color(0x8899bb);
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 500);
+const CAM_DIST = 14;
+
+// Bloom
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.6, 0.4, 0.85);
+composer.addPass(bloomPass);
+
+// ═══════════════════ 天空 ═══════════════════
+const skyGeo = new THREE.SphereGeometry(150, 32, 32);
+const skyUniforms = { uTime: { value: 0 }, uScene: { value: 0 } };
+const skyMat = new THREE.ShaderMaterial({
+  side: THREE.BackSide, uniforms: skyUniforms,
+  vertexShader: `varying vec3 vWP;void main(){vWP=(modelMatrix*vec4(position,1.0)).xyz;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+  fragmentShader: `
+    uniform float uTime,uScene;varying vec3 vWP;
+    vec3 skyDay(vec3 d){float y=d.y*.5+.5;return mix(vec3(.75,.82,.92),vec3(.15,.35,.75),smoothstep(.0,1.,y));}
+    vec3 skyDusk(vec3 d){float y=d.y*.5+.5;return mix(vec3(.95,.5,.2),vec3(.1,.1,.3),smoothstep(.0,1.,y));}
+    vec3 skyNight(vec3 d){float y=d.y*.5+.5;vec3 c=mix(vec3(.08,.12,.25),vec3(.02,.03,.1),smoothstep(.0,1.,y));
+      float s=step(.998,fract(sin(dot(d.xz*100.,vec2(12.9898,78.233)))*43758.5453));
+      c+=s*vec3(.8,.85,1.)*smoothstep(.3,.8,y);
+      float a=sin(d.x*3.+uTime*.3)*sin(d.z*2.+uTime*.2);a=smoothstep(.3,.8,a*.5+.5);
+      c=mix(c,mix(vec3(.1,.8,.4),vec3(.3,.2,.9),sin(uTime*.5)*.5+.5),a*.35*smoothstep(.3,.7,y));return c;}
+    vec3 skyDawn(vec3 d){float y=d.y*.5+.5;return mix(vec3(.9,.7,.4),vec3(.1,.15,.35),smoothstep(.0,1.,y));}
+    void main(){vec3 d=normalize(vWP);int sc=int(uScene+.5);
+      if(sc==0)gl_FragColor=vec4(skyDay(d),1);else if(sc==1)gl_FragColor=vec4(skyDusk(d),1);
+      else if(sc==2)gl_FragColor=vec4(skyNight(d),1);else gl_FragColor=vec4(skyDawn(d),1);}`
+});
+const skyDome = new THREE.Mesh(skyGeo, skyMat);
+scene.add(skyDome);
+
+// ═══════════════════ 光照 ═══════════════════
+const ambientLight = new THREE.AmbientLight(0x8899bb, 0.7);
+scene.add(ambientLight);
+const sunLight = new THREE.DirectionalLight(0xffeedd, 1.2);
+sunLight.position.set(5, 15, 8);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.set(2048, 2048);
+sunLight.shadow.camera.near = 0.5; sunLight.shadow.camera.far = 100;
+sunLight.shadow.camera.left = -40; sunLight.shadow.camera.right = 40;
+sunLight.shadow.camera.top = 40; sunLight.shadow.camera.bottom = -40;
+scene.add(sunLight);
+
+const SCENE_LIGHTING = {
+  day:   { ambient: 0x8899bb, aI: 0.7, sun: 0xffeedd, sI: 1.2, sp: [5,15,8] },
+  dusk:  { ambient: 0x665577, aI: 0.4, sun: 0xff8844, sI: 0.8, sp: [-8,5,3] },
+  night: { ambient: 0x223355, aI: 0.25, sun: 0x4466aa, sI: 0.3, sp: [0,10,0] },
+  dawn:  { ambient: 0x776655, aI: 0.5, sun: 0xffaa66, sI: 0.7, sp: [8,4,-3] },
+};
+
+function setSceneLighting(n) {
+  const l = SCENE_LIGHTING[n] || SCENE_LIGHTING.day;
+  ambientLight.color.setHex(l.ambient); ambientLight.intensity = l.aI;
+  sunLight.color.setHex(l.sun); sunLight.intensity = l.sI;
+  sunLight.position.set(...l.sp);
+  if (window._stars) {
+    const starOpacity = n === 'night' ? 0.9 : (n === 'dusk' ? 0.4 : (n === 'dawn' ? 0.2 : 0));
+    window._stars.mat.opacity = starOpacity;
+  }
+}
+
+// ═══════════════════ 粒子 ═══════════════════
+const PC = 500;
+const pGeo = new THREE.BufferGeometry();
+const pPos = new Float32Array(PC * 3), pVel = new Float32Array(PC * 3);
+for (let i = 0; i < PC; i++) {
+  pPos[i*3] = (Math.random() - 0.5) * 60;
+  pPos[i*3+1] = Math.random() * 20;
+  pPos[i*3+2] = (Math.random() - 0.5) * 60;
+  pVel[i*3] = (Math.random() - 0.5) * 0.02;
+  pVel[i*3+1] = -0.02 - Math.random() * 0.03;
+  pVel[i*3+2] = (Math.random() - 0.5) * 0.02;
+}
+pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+const pMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.06, transparent: true, opacity: 0.7, depthWrite: false });
+const particleSystem = new THREE.Points(pGeo, pMat);
+scene.add(particleSystem);
+const PS = {
+  day:{c:0xffffff,s:.04,o:.3,vy:-.01}, dusk:{c:0xffaa44,s:.05,o:.6,vy:-.005},
+  night:{c:0xffffff,s:.06,o:.8,vy:-.02}, dawn:{c:0xddddff,s:.08,o:.4,vy:-.008}
+};
+
+// ═══════════════════ 海面 Shader ═══════════════════
+const seaMat = new THREE.ShaderMaterial({
+  uniforms: { uTime: { value: 0 }, uScene: { value: 0 }, uCamPos: { value: new THREE.Vector3() } },
+  vertexShader: `
+    uniform float uTime;
+    varying vec3 vWP; varying vec2 vUv; varying float vWave;
+    void main(){
+      vUv = uv;
+      vec3 p = position;
+      float w1 = sin(p.x*0.8+uTime*0.7)*0.15;
+      float w2 = sin(p.z*1.2+uTime*0.5)*0.1;
+      float w3 = sin((p.x+p.z)*0.5+uTime*1.1)*0.08;
+      p.y += w1+w2+w3;
+      vWave = w1+w2+w3;
+      vWP = (modelMatrix*vec4(p,1.0)).xyz;
+      gl_Position = projectionMatrix*modelViewMatrix*vec4(p,1.0);
+    }`,
+  fragmentShader: `
+    uniform float uTime, uScene;
+    uniform vec3 uCamPos;
+    varying vec3 vWP; varying vec2 vUv; varying float vWave;
+    void main(){
+      float dist = length(vWP.xz - uCamPos.xz);
+      float fogFactor = exp(-dist*0.008);
+      vec3 deepBlue = vec3(0.06,0.18,0.35);
+      vec3 shallowBlue = vec3(0.12,0.38,0.55);
+      vec3 baseColor = mix(shallowBlue, deepBlue, smoothstep(-0.1,0.2,vUv.y));
+      float foam = smoothstep(0.15,0.35,vWave);
+      baseColor = mix(baseColor, vec3(0.6,0.8,0.95), foam*0.5);
+      float spec = pow(max(0.0,vWave*3.0+0.5),4.0)*0.3;
+      baseColor += vec3(spec);
+      float caustic = sin(vWP.x*3.0+uTime*1.5)*sin(vWP.z*4.0+uTime*1.2)*0.5+0.5;
+      baseColor += vec3(0.02,0.04,0.06)*caustic;
+      int sc = int(uScene+0.5);
+      if(sc>=2) baseColor *= 0.35;
+      else if(sc==1) baseColor *= 0.6;
+      vec3 fogColor = vec3(0.53,0.6,0.73);
+      baseColor = mix(fogColor, baseColor, fogFactor);
+      gl_FragColor = vec4(baseColor, 0.88);
+    }`,
+  transparent: true, side: THREE.DoubleSide,
+});
+const seaMesh = new THREE.Mesh(new THREE.PlaneGeometry(600, 600, 32, 32), seaMat);
+seaMesh.rotation.x = -Math.PI / 2;
+seaMesh.position.y = -0.1;
+seaMesh.receiveShadow = true;
+scene.add(seaMesh);
+
+// ═══════════════════ 区域定义 — 按状态分区 ═══════════════════
+const ZONES = {
+  pending:     { angle: Math.PI * 0.33,  color: 0x888888, label: '⏳ 待办森林', zone: 'living' },
+  in_progress: { angle: Math.PI * 1.0,   color: 0x4ecdc4, label: '🔨 进行中', zone: 'workshop' },
+  completed:   { angle: Math.PI * 1.67,  color: 0x6c5ce7, label: '✅ 已完成', zone: 'academy' },
+};
+const CAT2ZONE = {
+  '开发':'dev','编程':'dev','代码':'dev','技术':'dev','bug':'dev','fix':'dev',
+  '学习':'study','阅读':'study','读书':'study','课程':'study','论文':'study','研究':'study',
+  '运动':'workout','健身':'workout','锻炼':'workout','跑步':'workout','瑜伽':'workout',
+  '生活':'life','日常':'life','家务':'life','购物':'life','做饭':'life','打扫':'life',
+};
+function getZone(t) {
+  // 按状态分区，不再按类别
+  return t.status === 'completed' ? 'completed'
+       : t.status === 'in_progress' ? 'in_progress'
+       : 'pending';
+}
+
+const TASK_ICONS = {
+  dev: '⚙️', study: '📖', workout: '💪', life: '🏠',
+  pending: '⏳', in_progress: '🔨', completed: '✅'
+};
+
+// ═══════════════════ 副本系统 ═══════════════════
+let dungeonGroup = null, dungeonRing = null, dungeonParticles = null;
+
+function enterDungeon(task) {
+  if (inDungeon) return;
+  inDungeon = true;
+  dungeonTask = task;
+  window.parent.postMessage({ type: 'islandAction', action: { type: 'dungeonEnter', taskId: task.id } }, '*');
+
+  dungeonGroup = new THREE.Group();
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(5, 32),
+    new THREE.MeshStandardMaterial({ color: 0x1a1a2e, roughness: 0.8, metalness: 0.3 }));
+  floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; dungeonGroup.add(floor);
+
+  const wall = new THREE.Mesh(new THREE.CylinderGeometry(5, 5, 4, 32, 1, true),
+    new THREE.MeshStandardMaterial({ color: 0x2a2a4e, roughness: 0.5, side: THREE.BackSide, transparent: true, opacity: 0.8 }));
+  wall.position.y = 2; dungeonGroup.add(wall);
+
+  // 副本分形环
+  const ringData = createFractalTree(Date.now() % 10000, 2, 1.5, 200);
+  const knotGeo = new THREE.BufferGeometry();
+  knotGeo.setAttribute('position', new THREE.BufferAttribute(ringData.positions, 3));
+  knotGeo.setAttribute('color', new THREE.BufferAttribute(ringData.colors, 3));
+  knotGeo.setIndex(new THREE.BufferAttribute(ringData.indices, 1));
+  const ring = new THREE.Mesh(knotGeo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.8 }));
+  ring.rotation.x = Math.PI/2;
+  ring.scale.setScalar(2);
+  ring.position.y = 2.5;
+  dungeonGroup.add(ring);
+  dungeonRing = ring;
+
+  const taskLabel = makeTextSprite(task.title || '专注', { fontSize: 32, color: '#ffdd44', scale: 3 });
+  taskLabel.position.y = 3.8;
+  dungeonGroup.add(taskLabel);
+
+  const zone = getZone(task);
+  const zc = ZONES[zone]?.color || 0xccaa44;
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2;
+    const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 4, 6),
+      new THREE.MeshBasicMaterial({ color: zc, transparent: true, opacity: 0.4 }));
+    pillar.position.set(Math.cos(a) * 4, 2, Math.sin(a) * 4);
+    dungeonGroup.add(pillar);
+  }
+
+  const dpCount = 150;
+  const dpGeo = new THREE.BufferGeometry();
+  const dpPositions = new Float32Array(dpCount * 3);
+  for (let i = 0; i < dpCount; i++) {
+    const a = Math.random() * Math.PI * 2, r = Math.random() * 4;
+    dpPositions[i * 3] = Math.cos(a) * r;
+    dpPositions[i * 3 + 1] = Math.random() * 4;
+    dpPositions[i * 3 + 2] = Math.sin(a) * r;
+  }
+  dpGeo.setAttribute('position', new THREE.BufferAttribute(dpPositions, 3));
+  const dpMat = new THREE.PointsMaterial({ color: zc, size: 0.05, transparent: true, opacity: 0.6, depthWrite: false });
+  dungeonParticles = new THREE.Points(dpGeo, dpMat);
+  dungeonGroup.add(dungeonParticles);
+
+  scene.add(dungeonGroup);
+  if (penguinGroup) penguinGroup.visible = false;
+  for (const [, e] of taskMeshes) e.group.visible = false;
+
+  document.getElementById('dungeon-ui').classList.add('active');
+  document.getElementById('dungeon-task-name').textContent = task.title || '专注';
+  document.getElementById('dungeon-exit').onclick = exitDungeon;
+  camPos.set(0, 3, 6); camTarget.set(0, 2, 0);
+  showBubble(`进入副本: ${task.title}`, new THREE.Vector3(0, 4, 0));
+}
+
+function exitDungeon() {
+  if (!inDungeon) return;
+  inDungeon = false; dungeonTask = null;
+  if (dungeonGroup) { scene.remove(dungeonGroup); dungeonGroup = null; }
+  dungeonRing = null; dungeonParticles = null;
+  if (penguinGroup) penguinGroup.visible = true;
+  for (const [, e] of taskMeshes) e.group.visible = true;
+  document.getElementById('dungeon-ui').classList.remove('active');
+  camPos.copy(penguinPos).add(new THREE.Vector3(0, 6, 14));
+  camTarget.copy(penguinPos).add(new THREE.Vector3(0, 0.8, 0));
+}
+
+function updateDungeon(dt) {
+  if (!inDungeon) return;
+  const pomo = pomoState;
+  if (pomo.active) {
+    const mins = Math.floor(pomo.remaining / 60);
+    const secs = pomo.remaining % 60;
+    document.getElementById('dungeon-timer').textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+    const progress = pomo.total > 0 ? (pomo.total - pomo.remaining) / pomo.total : 0;
+    document.getElementById('dungeon-progress-bar').style.width = `${progress * 100}%`;
+    if (dungeonRing) {
+      dungeonRing.rotation.y += dt * 0.5;
+      dungeonRing.rotation.x += dt * 0.3;
+      dungeonRing.scale.setScalar(1 + progress * 0.2);
+    }
+    if (dungeonParticles) {
+      const sp = dungeonParticles.geometry.attributes.position;
+      for (let i = 0; i < sp.count; i++) {
+        let y = sp.getY(i) + dt * 0.5;
+        if (y > 4) y = 0;
+        sp.setY(i, y);
+        const a = Math.atan2(sp.getZ(i), sp.getX(i)) + dt * 0.3;
+        const r = Math.sqrt(sp.getX(i) ** 2 + sp.getZ(i) ** 2);
+        sp.setX(i, Math.cos(a) * r);
+        sp.setZ(i, Math.sin(a) * r);
+      }
+      sp.needsUpdate = true;
+    }
+  }
+  camAngleH += dt * 0.15;
+  const targetPos = new THREE.Vector3(Math.sin(camAngleH) * 6, 3, Math.cos(camAngleH) * 6);
+  camPos.lerp(targetPos, Math.min(1, dt * 2));
+  camera.position.copy(camPos);
+  camera.lookAt(0, 2, 0);
+}
+
+// ═══════════════════ 企鹅 ═══════════════════
+let penguinGroup, penguinPos = new THREE.Vector3(0, 0.5, 0), penguinFacing = 0, penguinState = 'idle', penguinFrame = 0, isMoving = false;
+let penguinLFlipper, penguinRFlipper, penguinLFoot, penguinRFoot, penguinHead, penguinBodyMesh;
+
+function createPenguin() {
+  penguinGroup = new THREE.Group();
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x1a1a2e, roughness: 0.7, metalness: 0.1 });
+  const whiteMat = new THREE.MeshStandardMaterial({ color: 0xf0f0f0, roughness: 0.6 });
+  const orangeMat = new THREE.MeshStandardMaterial({ color: 0xff8c00, roughness: 0.5 });
+  const eyeMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.3 });
+  const eyeWhite = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
+
+  penguinBodyMesh = new THREE.Mesh(new THREE.SphereGeometry(0.35, 16, 12), darkMat);
+  penguinBodyMesh.scale.set(1, 1.3, 0.9);
+  penguinBodyMesh.position.y = 0.45;
+  penguinBodyMesh.castShadow = true;
+  penguinGroup.add(penguinBodyMesh);
+
+  const belly = new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 12), whiteMat);
+  belly.scale.set(0.8, 1.15, 0.7);
+  belly.position.set(0, 0.42, 0.15);
+  penguinGroup.add(belly);
+
+  penguinHead = new THREE.Mesh(new THREE.SphereGeometry(0.25, 16, 12), darkMat);
+  penguinHead.position.y = 0.9;
+  penguinHead.castShadow = true;
+  penguinGroup.add(penguinHead);
+
+  [-1, 1].forEach(side => {
+    const ew = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 8), eyeWhite);
+    ew.position.set(side * 0.12, 0.94, 0.18);
+    penguinGroup.add(ew);
+    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), eyeMat);
+    pupil.position.set(side * 0.12, 0.94, 0.23);
+    penguinGroup.add(pupil);
+    const hl = new THREE.Mesh(new THREE.SphereGeometry(0.015, 6, 6), eyeWhite);
+    hl.position.set(side * 0.1, 0.97, 0.24);
+    penguinGroup.add(hl);
+  });
+
+  const beak = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.15, 8), orangeMat);
+  beak.rotation.x = -Math.PI / 2;
+  beak.position.set(0, 0.88, 0.26);
+  penguinGroup.add(beak);
+
+  penguinLFlipper = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.35, 0.15), darkMat);
+  penguinLFlipper.position.set(-0.32, 0.5, 0);
+  penguinLFlipper.rotation.z = 0.3;
+  penguinLFlipper.castShadow = true;
+  penguinGroup.add(penguinLFlipper);
+
+  penguinRFlipper = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.35, 0.15), darkMat);
+  penguinRFlipper.position.set(0.32, 0.5, 0);
+  penguinRFlipper.rotation.z = -0.3;
+  penguinRFlipper.castShadow = true;
+  penguinGroup.add(penguinRFlipper);
+
+  penguinLFoot = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.04, 0.18), orangeMat);
+  penguinLFoot.position.set(-0.12, 0.02, 0.05);
+  penguinGroup.add(penguinLFoot);
+
+  penguinRFoot = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.04, 0.18), orangeMat);
+  penguinRFoot.position.set(0.12, 0.02, 0.05);
+  penguinGroup.add(penguinRFoot);
+
+  const blushMat = new THREE.MeshBasicMaterial({ color: 0xff9999, transparent: true, opacity: 0.3 });
+  [-1, 1].forEach(side => {
+    const blush = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), blushMat.clone());
+    blush.position.set(side * 0.2, 0.84, 0.15);
+    blush.scale.set(1.2, 0.8, 0.5);
+    penguinGroup.add(blush);
+  });
+
+  const sh = new THREE.Mesh(new THREE.CircleGeometry(0.35, 16),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.15, depthWrite: false }));
+  sh.rotation.x = -Math.PI / 2; sh.position.y = -0.48;
+  penguinGroup.add(sh);
+
+  penguinGroup.position.copy(penguinPos);
+  penguinGroup.scale.setScalar(0.9);
+  scene.add(penguinGroup);
+}
+createPenguin();
+
+// ═══════════════════ Minecraft风格 输入 + 第一人称物理 ═══════════════════
+const keys = {};
+let justPressed = {}; // 单帧按键
+
+document.addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+
+  // 传送门面板打开时：方向键导航，Enter 确认，Esc 关闭
+  const portalPanel = document.getElementById('portal-panel');
+  if (portalPanel.classList.contains('show')) {
+    if (k === 'escape') { hidePortalPanel(); e.preventDefault(); return; }
+    if (k === 'enter') {
+      if (portalCardIds.length > 0 && portalSelectedIdx >= 0) {
+        selectPortalTask(portalCardIds[portalSelectedIdx]);
+      }
+      e.preventDefault(); return;
+    }
+    if (k === 'arrowleft' || k === 'arrowup') {
+      portalSelectedIdx = Math.max(0, portalSelectedIdx - 1);
+      updatePortalFocus(); e.preventDefault(); return;
+    }
+    if (k === 'arrowright' || k === 'arrowdown') {
+      portalSelectedIdx = Math.min(portalCardIds.length - 1, portalSelectedIdx + 1);
+      updatePortalFocus(); e.preventDefault(); return;
+    }
+    // 面板打开时，其他按键不传给游戏
+    e.preventDefault();
+    return;
+  }
+
+  if (!keys[k]) justPressed[k] = true;
+  keys[k] = true;
+
+  // 详情面板打开时，Escape 关闭
+  if (document.getElementById('tree-detail').classList.contains('show')) {
+    if (e.key === 'Escape') { closeTreeDetail(); e.preventDefault(); }
+    return;
+  }
+  if (inPomoSpace) {
+    if (k === 'escape' || k === 'b') { exitPomoSpace(); e.preventDefault(); return; }
+    if (k === ' ') { startVoiceNote(); e.preventDefault(); return; }
+    if (k === 'arrowleft') { prevBGM(); e.preventDefault(); return; }
+    if (k === 'arrowright') { nextBGM(); e.preventDefault(); return; }
+    if (k === 'arrowup') { pomoVolumeUp(); e.preventDefault(); return; }
+    if (k === 'arrowdown') { pomoVolumeDown(); e.preventDefault(); return; }
+    if (k === 'enter') { togglePomoPause(); e.preventDefault(); return; }
+    if (k === 'p') { togglePomoPause(); e.preventDefault(); return; }
+    if (k === 'n') { addPomoNote(); e.preventDefault(); return; }
+    if (k === 'c') { completePomoEarly(); e.preventDefault(); return; }
+    return;
+  }
+  if (inDungeon) { if (e.key === 'Escape' || e.key === 'Backspace') { exitDungeon(); e.preventDefault(); } return; }
+  if (k === 'enter') { doInteract(); e.preventDefault(); }
+  if (e.key === ' ') { e.preventDefault(); } // Space = 跳跃，我们自己处理
+  if (k === 'tab') { toggleTaskPanel(); e.preventDefault(); }
+  if (k === 'escape') { window.parent.postMessage('closePenguinIsland', '*'); }
+});
+document.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+document.addEventListener('wheel', e => {
+  if (inPomoSpace) {
+    pomoSpaceCamDist = Math.max(5, Math.min(25, pomoSpaceCamDist + e.deltaY * 0.02));
+  }
+}, { passive: true });
+
+let gamepadIndex = -1, prevBtnA = false, prevBtnB = false;
+window.addEventListener('gamepadconnected', e => { gamepadIndex = e.gamepad.index; });
+window.addEventListener('gamepaddisconnected', () => { gamepadIndex = -1; });
+let parentGamepad = null;
+window.addEventListener('message', e => {
+  if (e.data?.type === 'gamepad') parentGamepad = e.data;
+  else if (e.data?.type === 'keydown') { const k = e.data.key.toLowerCase(); if (!keys[k]) justPressed[k] = true; keys[k] = true; }
+  else if (e.data?.type === 'keyup') keys[e.data.key.toLowerCase()] = false;
+  else if (e.data?.type === 'pomoSync') {
+    const prevActive = pomoState.active;
+    pomoState = e.data.pomo;
+    // 番茄钟完成时触发粒子
+    if (inPomoSpace && prevActive && !pomoState.active && pomoState.state === 'idle') {
+      spawnCompletionParticles();
+      showBubble('🎉 番茄钟完成！', new THREE.Vector3(0, 4, 0));
+    }
+  }
+});
+
+// ═══════════════════ 第一人称相机 (Minecraft 风格) ═══════════════════
+let yaw = 0, pitch = 0;           // 欧拉角 (弧度)
+const MOUSE_SENSITIVITY = 0.002;
+const GAMEPAD_SENSITIVITY = 2.5;
+let pointerLocked = false;
+
+document.addEventListener('mousemove', e => {
+  if (inPomoSpace) {
+    pomoSpaceCamAngleH -= e.movementX * 0.005;
+    pomoSpaceCamAngleV = Math.max(-1.2, Math.min(1.2, pomoSpaceCamAngleV - e.movementY * 0.005));
+    return;
+  }
+  if (!pointerLocked) return;
+  yaw -= e.movementX * MOUSE_SENSITIVITY;
+  pitch -= e.movementY * MOUSE_SENSITIVITY;
+  pitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, pitch));
+});
+
+function requestPointerLock() {
+  if (pointerLocked) return;
+  document.body.requestPointerLock?.();
+}
+document.addEventListener('pointerlockchange', () => {
+  pointerLocked = !!document.pointerLockElement;
+});
+document.addEventListener('click', requestPointerLock);
+document.addEventListener('touchstart', requestPointerLock);
+
+// ═══════════════════ 物理引擎 ═══════════════════
+const GRAVITY = 18;              // m/s²
+const JUMP_VELOCITY = 8;         // 起跳初速度
+const MOVE_SPEED = 7;            // 水平移动速度
+const SPRINT_SPEED = 30;         // 疾跑速度
+const PLAYER_HEIGHT = 1.6;       // 眼睛高度
+const PLAYER_RADIUS = 0.3;       // 碰撞半径
+
+let playerVelocity = new THREE.Vector3();  // 速度向量
+let playerOnGround = false;
+let playerPos = new THREE.Vector3(0, 3, 0); // x,y,z — y是脚底
+
+// 疾跑：双击W触发
+let lastWPressTime = 0;
+let isSprinting = false;
+
+// Terrain height at a given XZ — 采样当前已加载区块
+function sampleTerrainHeight(x, z) {
+  let h = -5; // 默认海底
+  for (const [key, island] of loadedChunks) {
+    const dx = x - island.center.x, dz = z - island.center.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    if (dist < island.radius + 3) {
+      // 岛屿内部：噪声高度
+      const noiseH = getIslandHeight(x, z);
+      if (noiseH > h) h = noiseH;
+    }
+  }
+  // 也检查初始岛屿（0,0）
+  const homeH = getIslandHeight(x, z);
+  if (homeH > h) h = homeH;
+  return h;
+}
+
+// ═══════════════════ 虚拟手柄（移动端，CSS media 控制显示） ═══════════════════
+const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+let touchState = { mx: 0, mz: 0, lookDx: 0, lookDy: 0, jump: false, interact: false };
+
+// 因为父页面 viewport 锁死 1280px，CSS @media 不生效
+// 方案：触摸设备 + 物理屏幕窄 → 手机/小平板
+// screen.availWidth 是物理CSS像素，不受viewport影响
+const isNarrowScreen = screen.availWidth <= 1024;
+const isMobileScreen = isTouchDevice && isNarrowScreen;
+const touchControls = document.getElementById('touch-controls');
+if (isMobileScreen) {
+  touchControls.style.display = 'block';
+  console.log('Touch controls enabled: availWidth=' + screen.availWidth);
+}
+
+// 触摸事件绑定（只在触摸设备上生效）
+// 摇杆
+const joystickZone = document.getElementById('joystick-zone');
+const thumb = document.getElementById('joystick-thumb');
+const base = document.getElementById('joystick-base');
+let joyId = null, joyCenter = { x: 0, y: 0 };
+const maxDist = 48; // 拇指最大偏移
+
+joystickZone.addEventListener('touchstart', e => {
+  for (const t of e.changedTouches) {
+    if (joyId === null) {
+      joyId = t.identifier;
+      const rect = joystickZone.getBoundingClientRect();
+      joyCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      thumb.classList.add('active');
+    }
+  }
+  e.preventDefault();
+}, { passive: false });
+
+joystickZone.addEventListener('touchmove', e => {
+  for (const t of e.changedTouches) {
+    if (t.identifier === joyId) {
+      let dx = t.clientX - joyCenter.x, dy = t.clientY - joyCenter.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > maxDist) { dx *= maxDist / dist; dy *= maxDist / dist; }
+      thumb.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+      touchState.mz = -dy / maxDist; // 上=前进
+      touchState.mx = dx / maxDist;  // 右=右移
+    }
+  }
+  e.preventDefault();
+}, { passive: false });
+
+const resetJoystick = () => {
+  joyId = null;
+  thumb.style.transform = 'translate(-50%, -50%)';
+  thumb.classList.remove('active');
+  touchState.mx = 0; touchState.mz = 0;
+};
+
+joystickZone.addEventListener('touchend', e => {
+  for (const t of e.changedTouches) { if (t.identifier === joyId) resetJoystick(); }
+});
+joystickZone.addEventListener('touchcancel', resetJoystick);
+
+// 视角拖拽
+const lookZone = document.getElementById('touch-look-zone');
+let lookId = null, lastLook = { x: 0, y: 0 };
+
+lookZone.addEventListener('touchstart', e => {
+  for (const t of e.changedTouches) {
+    if (lookId === null && t.identifier !== joyId) {
+      lookId = t.identifier;
+      lastLook = { x: t.clientX, y: t.clientY };
+    }
+  }
+});
+
+lookZone.addEventListener('touchmove', e => {
+  for (const t of e.changedTouches) {
+    if (t.identifier === lookId) {
+      touchState.lookDx = t.clientX - lastLook.x;
+      touchState.lookDy = t.clientY - lastLook.y;
+      lastLook = { x: t.clientX, y: t.clientY };
+    }
+  }
+  e.preventDefault();
+}, { passive: false });
+
+const resetLook = () => { lookId = null; touchState.lookDx = 0; touchState.lookDy = 0; };
+lookZone.addEventListener('touchend', e => {
+  for (const t of e.changedTouches) { if (t.identifier === lookId) resetLook(); }
+});
+lookZone.addEventListener('touchcancel', resetLook);
+
+// 跳跃按钮
+const btnJump = document.getElementById('btn-jump');
+btnJump.addEventListener('touchstart', () => { touchState.jump = true; });
+btnJump.addEventListener('touchend', () => { touchState.jump = false; });
+
+function updatePhysics(dt) {
+  if (inPomoSpace) return;
+  if (inDungeon) return;
+
+  // --- 触摸视角（移动端） ---
+  if (isTouchDevice && (Math.abs(touchState.lookDx) > 0.5 || Math.abs(touchState.lookDy) > 0.5)) {
+    yaw -= touchState.lookDx * 0.003;
+    pitch -= touchState.lookDy * 0.003;
+    pitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, pitch));
+    touchState.lookDx *= 0.7; // 惯性衰减
+    touchState.lookDy *= 0.7;
+  }
+
+  // --- 手柄视角 ---
+  const gp = parentGamepad;
+  if (gp?.axes?.length >= 4) {
+    const rx = gp.axes[2] || 0, ry = gp.axes[3] || 0;
+    if (Math.abs(rx) > 0.15) yaw -= rx * GAMEPAD_SENSITIVITY * dt;
+    if (Math.abs(ry) > 0.15) pitch = Math.max(-Math.PI/2+0.01, Math.min(Math.PI/2-0.01, pitch - ry * GAMEPAD_SENSITIVITY * dt));
+  } else if (gamepadIndex >= 0) {
+    const g = navigator.getGamepads()[gamepadIndex];
+    if (g) {
+      const rx = g.axes[2] || 0, ry = g.axes[3] || 0;
+      if (Math.abs(rx) > 0.15) yaw -= rx * GAMEPAD_SENSITIVITY * dt;
+      if (Math.abs(ry) > 0.15) pitch = Math.max(-Math.PI/2+0.01, Math.min(Math.PI/2-0.01, pitch - ry * GAMEPAD_SENSITIVITY * dt));
+    }
+  }
+
+  // --- 水平移动 (WASD / 触摸摇杆) ---
+  let mx = touchState.mx, mz = touchState.mz; // 触摸优先
+  if (keys['w'] || keys['arrowup']) mz += 1;
+  if (keys['s'] || keys['arrowdown']) mz -= 1;
+  if (keys['a'] || keys['arrowleft']) mx -= 1;
+  if (keys['d'] || keys['arrowright']) mx += 1;
+
+  // 手柄移动
+  if (gp?.axes?.length >= 2) {
+    const lx = gp.axes[0] || 0, ly = gp.axes[1] || 0;
+    if (Math.abs(lx) > 0.15) mx += lx;
+    if (Math.abs(ly) > 0.15) mz += ly;
+  } else if (gamepadIndex >= 0) {
+    const g = navigator.getGamepads()[gamepadIndex];
+    if (g) {
+      if (Math.abs(g.axes[0]) > 0.15) mx += g.axes[0];
+      if (Math.abs(g.axes[1]) > 0.15) mz += g.axes[1];
+    }
+  }
+
+  const len = Math.sqrt(mx * mx + mz * mz);
+  if (len > 1) { mx /= len; mz /= len; }
+  isMoving = len > 0.1;
+
+  // 疾跑检测：双击W（500ms内连续按两次）
+  if (justPressed['w'] || justPressed['arrowup']) {
+    const now = performance.now();
+    if (now - lastWPressTime < 500 && len > 0.1) {
+      isSprinting = !isSprinting;
+      showBubble(isSprinting ? '🏃 疾跑模式' : '🚶 步行模式');
+    }
+    lastWPressTime = now;
+  }
+  // 放开W后松开疾跑
+  if (!keys['w'] && !keys['arrowup'] && len < 0.1) {
+    isSprinting = false;
+  }
+
+  // 水平速度 = 移动输入 × 方向
+  const speed = isSprinting ? SPRINT_SPEED : MOVE_SPEED;
+  const forward = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw)).normalize();
+  const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)).normalize();
+
+  // mz: 正=前进(W), 负=后退(S); mx: 正=右(D), 负=左(A)
+  playerVelocity.x = forward.x * mz * speed + right.x * mx * speed;
+  playerVelocity.z = forward.z * mz * speed + right.z * mx * speed;
+
+  // --- 跳跃 ---
+  if ((justPressed[' '] || touchState.jump) && playerOnGround) {
+    playerVelocity.y = JUMP_VELOCITY;
+    playerOnGround = false;
+    touchState.jump = false; // 只跳一次
+  }
+
+  // --- 重力 ---
+  playerVelocity.y -= GRAVITY * dt;
+
+  // --- 位置更新 (分轴碰撞检测) ---
+  // Y轴
+  playerPos.y += playerVelocity.y * dt;
+  const groundH = sampleTerrainHeight(playerPos.x, playerPos.z);
+  if (playerPos.y <= groundH) {
+    playerPos.y = groundH;
+    playerVelocity.y = 0;
+    playerOnGround = true;
+  } else {
+    playerOnGround = false;
+  }
+
+  // XZ轴
+  playerPos.x += playerVelocity.x * dt;
+  playerPos.z += playerVelocity.z * dt;
+
+  // 碰撞检测 (建筑/树)
+  for (const col of colliders) {
+    const dx = playerPos.x - col.pos.x, dz = playerPos.z - col.pos.z;
+    const d = Math.sqrt(dx * dx + dz * dz), min = PLAYER_RADIUS + col.radius;
+    if (d < min && d > 0.001) {
+      const push = (min - d) / d;
+      playerPos.x += dx * push;
+      playerPos.z += dz * push;
+    }
+  }
+
+  // 检查是否还在陆地上（掉海里就重置）
+  if (playerPos.y < -8) {
+    playerPos.set(0, 3, 0);
+    playerVelocity.set(0, 0, 0);
+    playerOnGround = true;
+  }
+
+  // --- 更新相机 (第一人称，眼睛位置 = 脚底 + 眼高) ---
+  const eyeY = playerPos.y + PLAYER_HEIGHT;
+  camera.position.set(playerPos.x, eyeY, playerPos.z);
+
+  // HUD 模式提示
+  const hint = document.getElementById('controls-hint');
+  if (inPomoSpace) hint.textContent = '🍅 番茄钟 · 鼠标旋转 · 滚轮缩放 · B退出';
+  else if (isSprinting) hint.textContent = '🏃 疾跑中 · 双击W切换';
+  else hint.textContent = 'WASD移动 · 鼠标视角 · 空格跳跃 · 双击W疾跑';
+
+  // 视角方向
+  const lookDir = new THREE.Vector3(
+    -Math.sin(yaw) * Math.cos(pitch),
+    Math.sin(pitch),
+    -Math.cos(yaw) * Math.cos(pitch)
+  );
+  camera.lookAt(camera.position.clone().add(lookDir));
+
+  // --- 更新企鹅位置 (隐藏的企鹅，用于交互判定) ---
+  penguinPos.copy(playerPos);
+  penguinPos.y += 0.1; // 脚底偏移
+
+  // 更新地图块
+  updateChunks(playerPos);
+
+  // 清除单帧按键
+  justPressed = {};
+}
+
+// 废弃的旧函数（保持兼容）
+function getInputVector() {
+  let x = 0, z = 0;
+  if (keys['w'] || keys['arrowup']) z -= 1;
+  if (keys['s'] || keys['arrowdown']) z += 1;
+  if (keys['a'] || keys['arrowleft']) x -= 1;
+  if (keys['d'] || keys['arrowright']) x += 1;
+  const len = Math.sqrt(x*x+z*z);
+  if (len > 1) { x /= len; z /= len; }
+  return { x, z, active: len > 0.1 };
+}
+function updatePenguin(dt) {
+  if (inDungeon) return;
+  isMoving = getInputVector().active;
+  penguinGroup.position.copy(playerPos);
+  penguinGroup.position.y = playerPos.y + 0.1;
+  penguinGroup.visible = false; // 第一人称：隐藏企鹅模型
+}
+
+// ═══════════════════ 交互 ═══════════════════
+function registerInteractable(pos, range, label, action, radius, topY) {
+  interactables.push({ pos: pos.clone(), range, label, action, radius: radius || 0.6, topY: topY || 1 });
+}
+function registerCollider(pos, radius) { colliders.push({ pos: pos.clone(), radius }); }
+function getBubblePos(obj) { return obj ? new THREE.Vector3(obj.pos.x, obj.topY, obj.pos.z) : new THREE.Vector3(penguinPos.x, 1, penguinPos.z); }
+
+let currentInteractable = null;
+const interactEl = document.getElementById('interact-prompt');
+const raycaster = new THREE.Raycaster();
+raycaster.far = 200; // 交互距离 — 树可能很远
+
+function updateInteractions() {
+  if (inDungeon || inPomoSpace) return;
+  const eyePos = camera.position;
+
+  // 找到距离内最近的可交互物，按各自 range 判断
+  let nearest = null, nd = Infinity;
+
+  for (const obj of interactables) {
+    const d = eyePos.distanceTo(obj.pos);
+    // 树用 10 单位，其他用各自的 range
+    const maxDist = obj.isTree ? 10 : obj.range;
+    if (d < maxDist && d < nd) {
+      nearest = obj;
+      nd = d;
+    }
+  }
+
+  currentInteractable = nearest;
+  if (currentInteractable) {
+    interactEl.textContent = `🖱️ Enter ${currentInteractable.label}`;
+    interactEl.style.opacity = '1';
+  } else {
+    interactEl.style.opacity = '0';
+  }
+}
+function doInteract() { if (inDungeon) return; console.log('[Interact] currentInteractable:', currentInteractable?.label); if (currentInteractable) currentInteractable.action(); else showBubble('准星对准可互动的物体~', null); }
+
+// ═══════════════════ 树详情面板 ═══════════════════
+function openTreeDetail(t) {
+  const el = document.getElementById('tree-detail');
+  document.getElementById('tree-detail-status').textContent =
+    t.status === 'completed' ? '✅ 已完成' : (t.status === 'in_progress' ? '🔨 进行中' : '⏳ 待办');
+  document.getElementById('tree-detail-title').textContent = t.title || '未命名任务';
+
+  const desc = t.description || '';
+  document.getElementById('tree-detail-desc').textContent = desc || '暂无描述';
+
+  // 元数据
+  const meta = document.getElementById('tree-detail-meta');
+  meta.innerHTML = '';
+
+  const priorityLabel = { high: '🔥 高', medium: '⚡ 中', low: '🌱 低' };
+  meta.appendChild(makeMetaItem('优先级', priorityLabel[t.priority] || t.priority || '-'));
+
+  if (t.due) meta.appendChild(makeMetaItem('截止', t.due));
+
+  const created = t.created_at ? new Date(t.created_at).toLocaleDateString('zh-CN') : '-';
+  meta.appendChild(makeMetaItem('创建', created));
+
+  if (t.completed_at) {
+    const done = new Date(t.completed_at).toLocaleDateString('zh-CN');
+    meta.appendChild(makeMetaItem('完成', done));
+  }
+
+  // Metadata 里的额外信息
+  const md = t.metadata || {};
+  if (md.pomo_count != null) meta.appendChild(makeMetaItem('🍅 番茄钟', `${md.pomo_done || 0}/${md.pomo_count}`));
+  if (md.notes) meta.appendChild(makeMetaItem('📝 笔记', md.notes));
+
+  if (t.tags && t.tags.length > 0) {
+    meta.appendChild(makeMetaItem('🏷️', t.tags.join(', ')));
+  }
+
+  // 操作按钮
+  const actions = document.getElementById('tree-detail-actions');
+  actions.innerHTML = '';
+
+  if (t.status === 'pending') {
+    const btn = document.createElement('button');
+    btn.className = 'btn-start';
+    btn.textContent = '▶ 开始';
+    btn.onclick = () => { apiUpdateTodo(t.id, { status: 'in_progress' }); closeTreeDetail(); };
+    actions.appendChild(btn);
+  }
+  if (t.status === 'in_progress') {
+    const btn = document.createElement('button');
+    btn.className = 'btn-complete';
+    btn.textContent = '✅ 完成';
+    btn.onclick = () => { apiUpdateTodo(t.id, { status: 'completed' }); closeTreeDetail(); };
+    actions.appendChild(btn);
+    const btn2 = document.createElement('button');
+    btn2.className = 'btn-pending';
+    btn2.textContent = '⏸ 暂停';
+    btn2.onclick = () => { apiUpdateTodo(t.id, { status: 'pending' }); closeTreeDetail(); };
+    actions.appendChild(btn2);
+  }
+  if (t.status === 'completed') {
+    const btn = document.createElement('button');
+    btn.className = 'btn-start';
+    btn.textContent = '🔄 重新开始';
+    btn.onclick = () => { apiUpdateTodo(t.id, { status: 'in_progress' }); closeTreeDetail(); };
+    actions.appendChild(btn);
+  }
+
+  el.classList.add('show');
+}
+
+function closeTreeDetail() {
+  document.getElementById('tree-detail').classList.remove('show');
+}
+
+function makeMetaItem(label, value) {
+  const div = document.createElement('div');
+  div.className = 'meta-item';
+  div.innerHTML = `<span class="label">${label}</span>${value}`;
+  return div;
+}
+
+// ═══════════════════ 能量塔（Torus Knot） ═══════════════════
+let towerGroup = null, towerGlowMesh = null;
+function createEnergyTower() {
+  towerGroup = new THREE.Group();
+  const knotData = createFractalTree(42, 3, 2, 200);
+  const knotGeo = new THREE.BufferGeometry();
+  knotGeo.setAttribute('position', new THREE.BufferAttribute(knotData.positions, 3));
+  knotGeo.setAttribute('color', new THREE.BufferAttribute(knotData.colors, 3));
+  knotGeo.setIndex(new THREE.BufferAttribute(knotData.indices, 1));
+  knotGeo.computeVertexNormals();
+  const knotMesh = new THREE.Mesh(knotGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.3, metalness: 0.6 }));
+  knotMesh.castShadow = true;
+  knotMesh.scale.setScalar(2.5);
+  towerGroup.add(knotMesh);
+
+  const glow = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 16),
+    new THREE.MeshBasicMaterial({ color: 0x4488ff, transparent: true, opacity: 0.8 }));
+  glow.position.y = 2;
+  towerGroup.add(glow);
+  towerGlowMesh = glow;
+
+  towerGroup.position.set(0, 0, 0);
+  scene.add(towerGroup);
+  registerInteractable(new THREE.Vector3(0, 0, 0), 3, '🍅 番茄钟能量塔', () => {
+    if (pomoState.active) {
+      if (pomoState.state === 'work') showBubble(`专注中 🔴 ${Math.floor(pomoState.remaining / 60)}:${(pomoState.remaining % 60).toString().padStart(2, '0')}`, getBubblePos(currentInteractable));
+      else showBubble(`休息中 🟢 ${Math.floor(pomoState.remaining / 60)}:${(pomoState.remaining % 60).toString().padStart(2, '0')}`, getBubblePos(currentInteractable));
+    } else showBubble('进入建筑开始番茄钟吧~', getBubblePos(currentInteractable));
+  }, 1, 3);
+  registerCollider(new THREE.Vector3(0, 0, 0), 1);
+}
+createEnergyTower();
+createPortal();
+
+// ═══════════════════ 分形星系传送门 ═══════════════════
+function createPortal() {
+  portalGroup = new THREE.Group();
+
+  // 中心太阳 — 纯白核心 + 蓝紫光晕
+  const coreGeo = new THREE.SphereGeometry(0.5, 32, 32);
+  const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  const core = new THREE.Mesh(coreGeo, coreMat);
+  portalGroup.add(core);
+
+  // 内层光晕 — 统一蓝紫渐变
+  const haloColors = [0x8899ff, 0x7766cc, 0x5544aa];
+  for (let i = 0; i < 3; i++) {
+    const halo = new THREE.Mesh(
+      new THREE.SphereGeometry(0.6 + i * 0.35, 32, 32),
+      new THREE.MeshBasicMaterial({ color: haloColors[i], transparent: true, opacity: 0.18 - i * 0.05, depthWrite: false })
+    );
+    halo.userData.haloIdx = i;
+    portalGroup.add(halo);
+    portalRings.push(halo);
+  }
+
+  // 对数螺旋臂 — 4条臂，统一蓝白渐变
+  const armBaseHue = 0.62; // 蓝紫色相
+  for (let a = 0; a < 4; a++) {
+    const baseAngle = (a / 4) * Math.PI * 2;
+    const armGroup = new THREE.Group();
+    const armPts = [];
+    const armCount = 200;
+    for (let i = 0; i < armCount; i++) {
+      const t = i / armCount;
+      const r = 0.8 + t * 5.5;
+      const spiral = t * Math.PI * 6;
+      const angle = baseAngle + spiral;
+      const x = Math.cos(angle) * r;
+      const z = Math.sin(angle) * r;
+      const y = (t - 0.5) * 2.5;
+      armPts.push(x, y, z);
+    }
+
+    // 臂上的发光节点 — 蓝→白渐变
+    const nodeCount = 80;
+    for (let i = 0; i < nodeCount; i++) {
+      const t = i / nodeCount;
+      const idx = Math.floor(t * (armCount - 1));
+      const px = armPts[idx * 3], py = armPts[idx * 3 + 1] + (Math.random() - 0.5) * 0.3, pz = armPts[idx * 3 + 2];
+      const nodeGeo = new THREE.SphereGeometry(0.04 + Math.random() * 0.08, 6, 6);
+      // 内侧蓝紫，外侧淡蓝白
+      const hue = armBaseHue - t * 0.08;
+      const sat = 0.3 + t * 0.3;
+      const light = 0.5 + t * 0.45;
+      const nc = new THREE.Color().setHSL(hue, sat, light);
+      const nodeMat = new THREE.MeshBasicMaterial({ color: nc, transparent: true, opacity: 0.4 + Math.random() * 0.4 });
+      const node = new THREE.Mesh(nodeGeo, nodeMat);
+      node.position.set(px, py, pz);
+      node.userData.basePos = { x: px, y: py, z: pz };
+      node.userData.phase = Math.random() * Math.PI * 2;
+      armGroup.add(node);
+    }
+    portalGroup.add(armGroup);
+    armGroup.userData.isArm = true;
+    armGroup.userData.baseAngle = baseAngle;
+    portalRings.push(armGroup);
+  }
+
+  // 环绕粒子环 — 蓝白星空感
+  const ppCount = 600;
+  const ppGeo = new THREE.BufferGeometry();
+  const ppPositions = new Float32Array(ppCount * 3);
+  const ppColors = new Float32Array(ppCount * 3);
+  for (let i = 0; i < ppCount; i++) {
+    const phi = Math.random() * Math.PI * 2;
+    const theta = Math.random() * Math.PI;
+    const r = 2.5 + Math.random() * 3.5;
+    ppPositions[i * 3] = Math.sin(theta) * Math.cos(phi) * r;
+    ppPositions[i * 3 + 1] = Math.sin(theta) * Math.sin(phi) * r;
+    ppPositions[i * 3 + 2] = Math.cos(theta) * r;
+    // 蓝白星空：色相 0.58-0.65，低饱和，高亮度
+    const c = new THREE.Color().setHSL(0.58 + Math.random() * 0.07, 0.15 + Math.random() * 0.25, 0.65 + Math.random() * 0.35);
+    ppColors[i * 3] = c.r; ppColors[i * 3 + 1] = c.g; ppColors[i * 3 + 2] = c.b;
+  }
+  ppGeo.setAttribute('position', new THREE.BufferAttribute(ppPositions, 3));
+  ppGeo.setAttribute('color', new THREE.BufferAttribute(ppColors, 3));
+  const ppMat = new THREE.PointsMaterial({ size: 0.05, vertexColors: true, transparent: true, opacity: 0.7, depthWrite: false, blending: THREE.AdditiveBlending });
+  portalParticles = new THREE.Points(ppGeo, ppMat);
+  portalGroup.add(portalParticles);
+
+  // 门框 — Torus Knot，银蓝半透明
+  for (let i = 0; i < 2; i++) {
+    const tkGeo = new THREE.TorusKnotGeometry(2.8, 0.06, 120, 8, 2, 3);
+    const tkMat = new THREE.MeshBasicMaterial({ color: i === 0 ? 0x8899cc : 0x9988bb, transparent: true, opacity: 0.35 });
+    const tk = new THREE.Mesh(tkGeo, tkMat);
+    tk.rotation.x = Math.PI / 2;
+    tk.rotation.z = i * Math.PI / 2;
+    tk.userData.rotSpeed = (i === 0 ? 0.3 : -0.25);
+    portalGroup.add(tk);
+    portalRings.push(tk);
+  }
+
+  portalGroup.position.set(5, 3, 0);
+  scene.add(portalGroup);
+
+  // 碰撞体
+  registerCollider(new THREE.Vector3(5, 3, 0), 2.8);
+}
+
+function updatePortal(dt) {
+  if (!portalGroup) return;
+  portalGroup.rotation.y += dt * 0.15;
+
+  // 光晕脉动
+  for (const ring of portalRings) {
+    if (ring.userData.haloIdx != null) {
+      const s = 0.9 + Math.sin(elapsed * 2 + ring.userData.haloIdx) * 0.1;
+      ring.scale.setScalar(s);
+      ring.material.opacity = 0.2 + Math.sin(elapsed * 1.5 + ring.userData.haloIdx * 2) * 0.08;
+    }
+    // Torus Knot 旋转
+    if (ring.userData.rotSpeed) {
+      ring.rotation.z += dt * ring.userData.rotSpeed;
+      ring.rotation.x += dt * ring.userData.rotSpeed * 0.5;
+    }
+    // 螺旋臂自转
+    if (ring.userData.isArm) {
+      ring.rotation.y += dt * 0.2;
+    }
+  }
+
+  // 粒子环绕
+  if (portalParticles) {
+    portalParticles.rotation.y += dt * 0.25;
+    portalParticles.rotation.x += dt * 0.1;
+  }
+}
+
+// ═══════════════════ 传送门任务选择面板 ═══════════════════
+let portalSelectedIdx = 0;
+let portalCardIds = [];
+
+function showPortalPanel() {
+  const panel = document.getElementById('portal-panel');
+  document.body.insertBefore(panel, document.body.firstChild);
+  const content = document.getElementById('portal-panel-content');
+  const pending = todos.filter(t => t.status === 'pending').slice(0, 5);
+  const active = todos.filter(t => t.status === 'in_progress').slice(0, 5);
+  const cards = [];
+  for (const t of active) cards.push({ task: t, icon: '🔨', cls: 'in_progress' });
+  for (const t of pending) cards.push({ task: t, icon: '⏳', cls: 'pending' });
+
+  portalCardIds = cards.map(c => c.task.id);
+  portalSelectedIdx = 0;
+
+  let html = '';
+  if (cards.length === 0) {
+    html = '<div style="color:rgba(255,255,255,0.5);text-align:center;padding:40px">还没有任务哦~<br>先去任务列表创建一个吧！</div>';
+  } else {
+    html = cards.map((c, i) => `
+      <div class="portal-task-card ${c.cls}${i === 0 ? ' focused' : ''}" data-idx="${i}" data-id="${c.task.id}">
+        <div class="card-icon">${c.icon}</div>
+        <div class="card-title">${c.task.title || '未命名'}</div>
+        <div class="card-meta">${c.task.pomo_done || 0}/${c.task.pomo_count || 0} 🍅</div>
+      </div>
+    `).join('');
+  }
+  content.innerHTML = '<div id="portal-panel-close" onclick="hidePortalPanel()">✕ 关闭</div>' + html;
+  panel.classList.add('show');
+  panel.style.setProperty('display', 'flex', 'important');
+  panel.style.setProperty('width', window.innerWidth + 'px', 'important');
+  panel.style.setProperty('height', window.innerHeight + 'px', 'important');
+  const bg = document.getElementById('portal-panel-bg');
+  if (bg) { bg.style.setProperty('display', 'block', 'important'); bg.style.setProperty('background', 'rgba(0,0,0,0.7)', 'important'); }
+  // 去掉调试红框
+  panel.style.removeProperty('border');
+  showBubble('选择要专注的任务吧~', new THREE.Vector3(0, 4, 0));
+}
+
+function updatePortalFocus() {
+  const cards = document.querySelectorAll('.portal-task-card');
+  cards.forEach((c, i) => {
+    c.classList.toggle('focused', i === portalSelectedIdx);
+  });
+}
+
+function hidePortalPanel() {
+  const panel = document.getElementById('portal-panel');
+  panel.classList.remove('show');
+  panel.style.removeProperty('display');
+  panel.style.removeProperty('width');
+  panel.style.removeProperty('height');
+  portalSelectedIdx = 0;
+  portalCardIds = [];
+}
+
+window.selectPortalTask = function(taskId) {
+  hidePortalPanel();
+  const task = todos.find(t => t.id === taskId);
+  if (task) enterPomoSpace(task);
+};
+
+window.hidePortalPanel = hidePortalPanel;
+
+// ═══════════════════ 三维番茄钟空间 ═══════════════════
+function enterPomoSpace(task) {
+  if (inPomoSpace) return;
+  inPomoSpace = true;
+  pomoSpaceTask = task;
+  pomoNotes = [];
+
+  // 通知父页面：企鹅岛内部番茄钟已启动（不触发父页面模式选择）
+  window.parent.postMessage({ type: 'islandAction', action: { type: 'pomoSpaceEnter', taskId: task.id } }, '*');
+
+  // 创建场景组
+  pomoSpaceGroup = new THREE.Group();
+  pomoSpaceGroup.position.set(0, 0, 0);
+
+  // --- 星空球 ---
+  const starCount = 2000;
+  const starGeo = new THREE.BufferGeometry();
+  const starPositions = new Float32Array(starCount * 3);
+  const starColors = new Float32Array(starCount * 3);
+  for (let i = 0; i < starCount; i++) {
+    const phi = Math.acos(2 * Math.random() - 1);
+    const theta = Math.random() * Math.PI * 2;
+    const r = 15 + Math.random() * 20;
+    starPositions[i * 3] = Math.sin(phi) * Math.cos(theta) * r;
+    starPositions[i * 3 + 1] = Math.sin(phi) * Math.sin(theta) * r;
+    starPositions[i * 3 + 2] = Math.cos(phi) * r;
+    const c = new THREE.Color().setHSL(Math.random(), 0.3, 0.5 + Math.random() * 0.5);
+    starColors[i * 3] = c.r; starColors[i * 3 + 1] = c.g; starColors[i * 3 + 2] = c.b;
+  }
+  starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+  starGeo.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
+  const starMat = new THREE.PointsMaterial({ size: 0.08, vertexColors: true, transparent: true, opacity: 0.8, depthWrite: false });
+  pomoSpaceStarField = new THREE.Points(starGeo, starMat);
+  pomoSpaceGroup.add(pomoSpaceStarField);
+
+  // --- 计时球体（中央） ---
+  const orbGroup = new THREE.Group();
+  // 核心发光球
+  const orbCore = new THREE.Mesh(
+    new THREE.SphereGeometry(0.8, 32, 32),
+    new THREE.MeshBasicMaterial({ color: 0x4488ff, transparent: true, opacity: 0.9 })
+  );
+  orbGroup.add(orbCore);
+  // 多层半透明外壳
+  for (let i = 0; i < 3; i++) {
+    const shell = new THREE.Mesh(
+      new THREE.SphereGeometry(0.9 + i * 0.3, 24, 24),
+      new THREE.MeshBasicMaterial({ color: [0x4488ff, 0x8844ff, 0x44aaff][i], transparent: true, opacity: 0.2 - i * 0.05, depthWrite: false, wireframe: i === 2 })
+    );
+    shell.userData.shellIdx = i;
+    orbGroup.add(shell);
+    pomoSpaceRingRings.push(shell);
+  }
+  // 分形环轨道
+  for (let i = 0; i < 3; i++) {
+    const ringGeo = new THREE.TorusGeometry(1.5 + i * 0.8, 0.03, 16, 64);
+    const ringMat = new THREE.MeshBasicMaterial({ color: [0x4488ff, 0x8844ff, 0x44ff88][i], transparent: true, opacity: 0.6 });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = Math.PI / 3 + i * 0.5;
+    ring.rotation.y = i * 0.7;
+    ring.userData.ringIdx = i;
+    orbGroup.add(ring);
+    pomoSpaceRingRings.push(ring);
+  }
+  orbGroup.position.y = 3;
+  pomoSpaceGroup.add(orbGroup);
+  pomoSpaceTimerOrb = orbGroup;
+
+  // --- 进度螺旋塔 ---
+  const towerGroup = new THREE.Group();
+  const towerH = 6;
+  const towerSegs = 40;
+  const towerPts = [];
+  for (let i = 0; i < towerSegs; i++) {
+    const t = i / towerSegs;
+    const angle = t * Math.PI * 6;
+    const r = 0.6 + t * 0.3;
+    towerPts.push(Math.cos(angle) * r, t * towerH, Math.sin(angle) * r);
+  }
+  // 管状螺旋
+  const towerGeo = new THREE.BufferGeometry();
+  const twPositions = [], twIndices = [];
+  const twSides = 6;
+  for (let si = 0; si < towerSegs - 1; si++) {
+    const x1 = towerPts[si * 3], y1 = towerPts[si * 3 + 1], z1 = towerPts[si * 3 + 2];
+    const x2 = towerPts[(si + 1) * 3], y2 = towerPts[(si + 1) * 3 + 1], z2 = towerPts[(si + 1) * 3 + 2];
+    const dx = x2 - x1, dy = y2 - y1, dz = z2 - z1;
+    const dl = Math.sqrt(dx * dx + dz * dz) || 1;
+    const nx = -dz / dl, nz = dx / dl;
+    const r1 = 0.04 + (1 - si / towerSegs) * 0.06;
+    const r2 = 0.04 + (1 - (si + 1) / towerSegs) * 0.06;
+    const base = twPositions.length / 3;
+    for (let j = 0; j < twSides; j++) {
+      const a = (j / twSides) * Math.PI * 2;
+      twPositions.push(x1 + nx * Math.cos(a) * r1, y1 + Math.sin(a) * r1, z1 + nz * Math.cos(a) * r1);
+    }
+    for (let j = 0; j < twSides; j++) {
+      const a = (j / twSides) * Math.PI * 2;
+      twPositions.push(x2 + nx * Math.cos(a) * r2, y2 + Math.sin(a) * r2, z2 + nz * Math.cos(a) * r2);
+    }
+    for (let j = 0; j < twSides; j++) {
+      const a = base + j, b = base + (j + 1) % twSides;
+      const c = base + twSides + j, d = base + twSides + (j + 1) % twSides;
+      twIndices.push(a, b, d, a, d, c);
+    }
+  }
+  towerGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(twPositions), 3));
+  towerGeo.setIndex(twIndices);
+  towerGeo.computeVertexNormals();
+  const towerMat = new THREE.MeshStandardMaterial({ color: 0x4488ff, roughness: 0.3, metalness: 0.7, emissive: 0x112244, emissiveIntensity: 0.5 });
+  const towerMesh = new THREE.Mesh(towerGeo, towerMat);
+  towerGroup.add(towerMesh);
+  // 塔顶发光球
+  const towerTop = new THREE.Mesh(
+    new THREE.SphereGeometry(0.2, 16, 16),
+    new THREE.MeshBasicMaterial({ color: 0x88ccff, transparent: true, opacity: 0.9 })
+  );
+  towerTop.position.y = towerH;
+  towerGroup.add(towerTop);
+  towerGroup.position.set(3, 0, 0);
+  towerGroup.visible = false; // 初始隐藏，有进度才显示
+  pomoSpaceGroup.add(towerGroup);
+  pomoSpaceProgressTower = towerGroup;
+
+  // --- 笔记基座（3个浮动平台） ---
+  for (let i = 0; i < 3; i++) {
+    const angle = (i / 3) * Math.PI * 2;
+    const pedestal = new THREE.Group();
+    const platGeo = new THREE.CylinderGeometry(0.4, 0.5, 0.15, 16);
+    const platMat = new THREE.MeshStandardMaterial({ color: 0x334466, roughness: 0.5, metalness: 0.4, emissive: 0x112233, emissiveIntensity: 0.3 });
+    const plat = new THREE.Mesh(platGeo, platMat);
+    pedestal.add(plat);
+    // 光柱
+    const beamGeo = new THREE.CylinderGeometry(0.05, 0.05, 1.5, 8);
+    const beamMat = new THREE.MeshBasicMaterial({ color: 0x4488ff, transparent: true, opacity: 0.3 });
+    const beam = new THREE.Mesh(beamGeo, beamMat);
+    beam.position.y = 0.8;
+    pedestal.add(beam);
+    pedestal.position.set(Math.cos(angle) * 4, 0.1, Math.sin(angle) * 4);
+    pedestal.userData.angle = angle;
+    pedestal.userData.beam = beam;
+    pomoSpaceGroup.add(pedestal);
+    pomoSpaceRingRings.push(pedestal);
+  }
+
+  // --- 暂停祭坛（中央下方） ---
+  const altarGroup = new THREE.Group();
+  const altarGeo = new THREE.CylinderGeometry(0.8, 1, 0.2, 8);
+  const altarMat = new THREE.MeshStandardMaterial({ color: 0x334455, roughness: 0.4, metalness: 0.5, emissive: 0x112233, emissiveIntensity: 0.4 });
+  const altar = new THREE.Mesh(altarGeo, altarMat);
+  altarGroup.add(altar);
+  // 八角光柱
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const pillar = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.03, 0.03, 2, 6),
+      new THREE.MeshBasicMaterial({ color: 0x4488ff, transparent: true, opacity: 0.4 })
+    );
+    pillar.position.set(Math.cos(a) * 0.9, 1.1, Math.sin(a) * 0.9);
+    altarGroup.add(pillar);
+    pillar.userData.phase = i;
+  }
+  altarGroup.position.set(0, 0.1, 0);
+  pomoSpaceGroup.add(altarGroup);
+  pomoSpaceRingRings.push(altarGroup);
+
+  // --- 粒子系统 ---
+  const psCount = 300;
+  const psGeo = new THREE.BufferGeometry();
+  const psPositions = new Float32Array(psCount * 3);
+  for (let i = 0; i < psCount; i++) {
+    psPositions[i * 3] = (Math.random() - 0.5) * 10;
+    psPositions[i * 3 + 1] = Math.random() * 8;
+    psPositions[i * 3 + 2] = (Math.random() - 0.5) * 10;
+  }
+  psGeo.setAttribute('position', new THREE.BufferAttribute(psPositions, 3));
+  const psMat = new THREE.PointsMaterial({ color: 0x4488ff, size: 0.04, transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending });
+  pomoSpaceParticles = new THREE.Points(psGeo, psMat);
+  pomoSpaceGroup.add(pomoSpaceParticles);
+
+  scene.add(pomoSpaceGroup);
+
+  // 隐藏主世界
+  if (penguinGroup) penguinGroup.visible = false;
+  for (const [, e] of taskMeshes) e.group.visible = false;
+  if (portalGroup) portalGroup.visible = false;
+
+  // 显示 HUD
+  document.getElementById('pomo-space-ui').classList.add('active');
+  document.getElementById('pomo-space-task').textContent = task.title || '专注';
+  document.getElementById('pomo-space-timer').textContent = '25:00';
+
+  // 初始化相机
+  pomoSpaceCamAngleH = 0;
+  pomoSpaceCamAngleV = 0.4;
+  pomoSpaceCamDist = 12;
+
+  // 初始化 BGM
+  initPomoBGM();
+
+  showBubble(`进入番茄钟: ${task.title}`, new THREE.Vector3(0, 4, 0));
+}
+
+function exitPomoSpace() {
+  if (!inPomoSpace) return;
+  inPomoSpace = false;
+  pomoSpaceTask = null;
+
+  // 通知父页面退出
+  window.parent.postMessage({ type: 'islandAction', action: { type: 'pomoSpaceExit' } }, '*');
+  if (pomoSpaceGroup) { scene.remove(pomoSpaceGroup); pomoSpaceGroup = null; }
+  pomoSpaceStarField = null;
+  pomoSpaceTimerOrb = null;
+  pomoSpaceRingRings = [];
+  pomoSpaceProgressTower = null;
+  pomoSpaceParticles = null;
+  if (pomoSpaceEnvGroup) { pomoSpaceGroup.remove(pomoSpaceEnvGroup); pomoSpaceEnvGroup = null; }
+  pomoSpaceEnvParticles = null;
+  pomoNotes = [];
+
+  // 停止 BGM
+  pomoBGMStop();
+  if (pomoSpaceAudioCtx) {
+    pomoSpaceAudioCtx.close().catch(() => {});
+    pomoSpaceAudioCtx = null;
+  }
+
+  // 恢复主世界
+  if (penguinGroup) penguinGroup.visible = true;
+  for (const [, e] of taskMeshes) e.group.visible = true;
+  if (portalGroup) portalGroup.visible = true;
+
+  document.getElementById('pomo-space-ui').classList.remove('active');
+
+  // 恢复第一人称相机
+  const eyeY = playerPos.y + PLAYER_HEIGHT;
+  camera.position.set(playerPos.x, eyeY, playerPos.z);
+  const lookDir = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
+  camera.lookAt(camera.position.clone().add(lookDir));
+}
+
+function updatePomoSpace(dt) {
+  if (!inPomoSpace || !pomoSpaceGroup) return;
+
+  // 星空旋转
+  if (pomoSpaceStarField) {
+    pomoSpaceStarField.rotation.y += dt * 0.05;
+    pomoSpaceStarField.rotation.x += dt * 0.02;
+  }
+
+  // 计时球体脉动
+  if (pomoSpaceTimerOrb) {
+    pomoSpaceTimerOrb.rotation.y += dt * 0.3;
+    const pomo = pomoState;
+    const progress = pomo.active && pomo.total > 0 ? (pomo.total - pomo.remaining) / pomo.total : 0;
+
+    // 外壳脉动
+    for (const ring of pomoSpaceRingRings) {
+      if (ring.userData.shellIdx != null) {
+        const s = 0.9 + Math.sin(elapsed * 2 + ring.userData.shellIdx) * 0.1;
+        ring.scale.setScalar(s);
+      }
+      if (ring.userData.ringIdx != null) {
+        ring.rotation.z += dt * (0.5 + ring.userData.ringIdx * 0.2);
+        ring.material.opacity = 0.4 + Math.sin(elapsed * 1.5 + ring.userData.ringIdx) * 0.2;
+      }
+      // 笔记基座浮动
+      if (ring.userData.angle != null) {
+        ring.position.y = 0.1 + Math.sin(elapsed * 1.2 + ring.userData.angle) * 0.3;
+        if (ring.userData.beam) {
+          ring.userData.beam.material.opacity = 0.2 + Math.sin(elapsed * 2 + ring.userData.angle) * 0.1;
+        }
+      }
+    }
+
+    // 进度塔
+    if (pomoSpaceProgressTower) {
+      if (progress > 0) {
+        pomoSpaceProgressTower.visible = true;
+        pomoSpaceProgressTower.scale.y = Math.min(1, progress);
+        pomoSpaceProgressTower.rotation.y += dt * (0.3 + progress * 1.5);
+      } else {
+        pomoSpaceProgressTower.visible = false;
+      }
+    }
+
+    // 粒子上升
+    if (pomoSpaceParticles) {
+      const sp = pomoSpaceParticles.geometry.attributes.position;
+      for (let i = 0; i < sp.count; i++) {
+        let y = sp.getY(i) + dt * (0.3 + progress * 1.5);
+        if (y > 8) y = 0;
+        sp.setY(i, y);
+        const a = Math.atan2(sp.getZ(i), sp.getX(i)) + dt * 0.2;
+        const r = Math.sqrt(sp.getX(i) ** 2 + sp.getZ(i) ** 2);
+        sp.setX(i, Math.cos(a) * r);
+        sp.setZ(i, Math.sin(a) * r);
+      }
+      sp.needsUpdate = true;
+      pomoSpaceParticles.material.color.setHex(pomo.active && pomo.state === 'break' ? 0xff8844 : 0x4488ff);
+    }
+
+    // 环境特效动画
+    if (pomoSpaceEnvParticles && pomoSpaceEnvGroup) {
+      const geo = pomoSpaceEnvParticles.geometry;
+      const pos = geo.attributes.position;
+      const ud = geo.userData;
+
+      if (ud.vel && ud.count) {
+        // 粒子系统（雨/火/叶/溪流）
+        if (pomoSpaceEnvParticles instanceof THREE.Points) {
+          for (let i = 0; i < ud.count; i++) {
+            // 雨滴：下落
+            if (ud.vel.length === ud.count) {
+              let y = pos.getY(i) - ud.vel[i] * dt;
+              if (y < -2) { y = 12; pos.setX(i, (Math.random()-0.5)*20); pos.setZ(i, (Math.random()-0.5)*20); }
+              pos.setY(i, y);
+            }
+            // 粒子3D速度（火/叶/溪流）
+            if (ud.vel.length === ud.count * 3) {
+              let x = pos.getX(i) + ud.vel[i*3] * dt;
+              let y = pos.getY(i) + ud.vel[i*3+1] * dt;
+              let z = pos.getZ(i) + ud.vel[i*3+2] * dt;
+              if (y > 10) { y = -2; x = (Math.random()-0.5)*10; z = (Math.random()-0.5)*10; }
+              if (y < -3) { y = 10; x = (Math.random()-0.5)*16; z = (Math.random()-0.5)*16; }
+              if (Math.abs(x) > 10) x = (Math.random()-0.5)*10;
+              if (Math.abs(z) > 10) z = (Math.random()-0.5)*10;
+              pos.setXYZ(i, x, y, z);
+            }
+          }
+          pos.needsUpdate = true;
+        }
+        // 波浪面
+        if (pomoSpaceEnvParticles instanceof THREE.Mesh && ud.waveTime != null) {
+          ud.waveTime += dt;
+          const wp = pomoSpaceEnvParticles.geometry.attributes.position;
+          for (let i = 0; i < wp.count; i++) {
+            const x = wp.getX(i), z = wp.getZ(i);
+            wp.setY(i, Math.sin(x * 0.5 + ud.waveTime * 1.2) * 0.3 + Math.cos(z * 0.7 + ud.waveTime * 0.8) * 0.3);
+          }
+          wp.needsUpdate = true;
+        }
+      }
+    }
+
+    // 场景色调：专注=蓝紫，休息=暖橙
+    const targetColor = pomo.active && pomo.state === 'break' ? 0xff8844 : 0x4488ff;
+    if (pomoSpaceTimerOrb.children[0]) {
+      pomoSpaceTimerOrb.children[0].material.color.lerp(new THREE.Color(targetColor), dt * 2);
+    }
+  }
+
+  // 第三人称相机
+  pomoSpaceCamAngleH += dt * 0.1;
+  const cx = Math.cos(pomoSpaceCamAngleH) * pomoSpaceCamDist;
+  const cz = Math.sin(pomoSpaceCamAngleH) * pomoSpaceCamDist;
+  const cy = Math.sin(pomoSpaceCamAngleV) * pomoSpaceCamDist;
+  camera.position.set(cx, 3 + cy, cz);
+  camera.lookAt(pomoSpaceCamTarget);
+
+  // 更新 HUD 计时器
+  const pomo = pomoState;
+  if (pomo.active) {
+    const mins = Math.floor(pomo.remaining / 60);
+    const secs = pomo.remaining % 60;
+    document.getElementById('pomo-space-timer').textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+    document.getElementById('btn-pomo-pause').textContent = pomo.paused ? '▶️ 继续' : '⏯️ 暂停';
+  } else {
+    document.getElementById('pomo-space-timer').textContent = '25:00';
+    document.getElementById('btn-pomo-pause').textContent = '⏯️ 暂停';
+  }
+
+  // 更新 BGM
+  updatePomoBGM();
+}
+
+// ═══════════════════ 番茄钟操作 ═══════════════════
+window.togglePomoPause = function() {
+  window.parent.postMessage({ type: 'islandAction', action: { type: 'togglePomo' } }, '*');
+};
+
+window.addPomoNote = function() {
+  const note = prompt('输入笔记内容：');
+  if (note && note.trim()) {
+    pomoNotes.push({ text: note.trim(), time: new Date().toLocaleTimeString() });
+    showBubble(`📝 笔记已记录 (${pomoNotes.length})`, new THREE.Vector3(0, 4, 0));
+    // 在3D空间中显示笔记浮标
+    if (pomoSpaceGroup) {
+      const angle = (pomoNotes.length % 3) / 3 * Math.PI * 2;
+      const noteSprite = makeTextSprite(note.trim().substring(0, 20), { fontSize: 24, color: '#ffdd44', scale: 1.5 });
+      noteSprite.position.set(Math.cos(angle) * 4, 2 + pomoNotes.length * 0.5, Math.sin(angle) * 4);
+      pomoSpaceGroup.add(noteSprite);
+      noteSprite.userData.isNote = true;
+    }
+  }
+};
+
+window.completePomoEarly = function() {
+  if (confirm('确定提前完成这个番茄钟吗？')) {
+    window.parent.postMessage({ type: 'islandAction', action: { type: 'completePomo' } }, '*');
+    // 完成粒子爆发
+    spawnCompletionParticles();
+  }
+};
+
+function spawnCompletionParticles() {
+  if (!pomoSpaceGroup) return;
+  const burstCount = 500;
+  const burstGeo = new THREE.BufferGeometry();
+  const burstPositions = new Float32Array(burstCount * 3);
+  const burstColors = new Float32Array(burstCount * 3);
+  for (let i = 0; i < burstCount; i++) {
+    const phi = Math.acos(2 * Math.random() - 1);
+    const theta = Math.random() * Math.PI * 2;
+    const r = 0.5 + Math.random() * 3;
+    burstPositions[i * 3] = Math.sin(phi) * Math.cos(theta) * r;
+    burstPositions[i * 3 + 1] = 3 + Math.sin(phi) * Math.sin(theta) * r;
+    burstPositions[i * 3 + 2] = Math.cos(phi) * r;
+    const c = new THREE.Color().setHSL(0.1 + Math.random() * 0.15, 0.9, 0.5 + Math.random() * 0.5);
+    burstColors[i * 3] = c.r; burstColors[i * 3 + 1] = c.g; burstColors[i * 3 + 2] = c.b;
+  }
+  burstGeo.setAttribute('position', new THREE.BufferAttribute(burstPositions, 3));
+  burstGeo.setAttribute('color', new THREE.BufferAttribute(burstColors, 3));
+  const burstMat = new THREE.PointsMaterial({ size: 0.08, vertexColors: true, transparent: true, opacity: 1, depthWrite: false, blending: THREE.AdditiveBlending });
+  const burst = new THREE.Points(burstGeo, burstMat);
+  burst.userData.life = 3;
+  pomoSpaceGroup.add(burst);
+  // 自动清理
+  const decay = () => {
+    burst.userData.life -= 0.016;
+    burst.material.opacity = Math.max(0, burst.userData.life / 3);
+    if (burst.userData.life <= 0) {
+      pomoSpaceGroup.remove(burst);
+      burstGeo.dispose();
+      burstMat.dispose();
+    } else {
+      requestAnimationFrame(decay);
+    }
+  };
+  requestAnimationFrame(decay);
+}
+
+// ═══════════════════ BGM 合成器 (复刻 app.js 自然音景引擎) ═══════════════════
+const BGM_LIST = [
+  { id: 'off',    name: '🔇 静音', icon: '🔇' },
+  { id: 'rain',   name: '🌧️ 雨声', icon: '🌧️' },
+  { id: 'ocean',  name: '🌊 海浪', icon: '🌊' },
+  { id: 'fire',   name: '🔥 篝火', icon: '🔥' },
+  { id: 'forest', name: '🌲 森林', icon: '🌲' },
+  { id: 'stream', name: '💧 溪流', icon: '💧' },
+];
+let bgmPresetIdx = 0; // 默认静音
+let bgmVolume = 0.25;
+let pomoBGMNodes = null;
+let pomoBGMEventsTimer = null;
+
+// 噪音生成
+function createPinkNoiseBuf(ctx, dur) {
+  const sr = ctx.sampleRate, len = sr * dur;
+  const buf = ctx.createBuffer(2, len, sr);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = buf.getChannelData(ch);
+    let b0=0, b1=0, b2=0, b3=0, b4=0, b5=0, b6=0;
+    for (let i = 0; i < len; i++) {
+      const w = Math.random()*2-1;
+      b0=0.99886*b0+w*0.0555179; b1=0.99332*b1+w*0.0750759;
+      b2=0.96900*b2+w*0.1538520; b3=0.86650*b3+w*0.3104856;
+      b4=0.55000*b4+w*0.5329522; b5=-0.7616*b5-w*0.0168980;
+      d[i]=(b0+b1+b2+b3+b4+b5+b6+w*0.5362)*0.11;
+      b6=w*0.115926;
+    }
+  }
+  return buf;
+}
+
+function createBrownNoiseBuf(ctx, dur) {
+  const sr = ctx.sampleRate, len = sr * dur;
+  const buf = ctx.createBuffer(2, len, sr);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = buf.getChannelData(ch);
+    let lo = 0;
+    for (let i = 0; i < len; i++) {
+      d[i] = (lo + 0.02*(Math.random()*2-1)) / 1.02;
+      lo = d[i]; d[i] *= 3.5;
+    }
+  }
+  return buf;
+}
+
+function createPomoReverb(ctx, dur) {
+  const sr = ctx.sampleRate, len = sr * (dur||1.2);
+  const imp = ctx.createBuffer(2, len, sr);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = imp.getChannelData(ch);
+    for (let i = 0; i < len; i++)
+      d[i] = (Math.random()*2-1) * Math.pow(1-i/len, 2.5);
+  }
+  const c = ctx.createConvolver();
+  c.buffer = imp;
+  return c;
+}
+
+function pomoBGMStart(id) {
+  pomoBGMStop();
+  if (id === 'off') return;
+
+  if (!pomoSpaceAudioCtx) pomoSpaceAudioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  const ctx = pomoSpaceAudioCtx;
+  const master = ctx.createGain();
+  master.gain.value = 0;
+
+  let source, events, lfoN=null, flfoN=null;
+
+  switch (id) {
+    case 'rain': {
+      source = ctx.createBufferSource();
+      source.buffer = createPinkNoiseBuf(ctx, 8);
+      source.loop = true;
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass'; bp.frequency.value = 2500; bp.Q.value = 0.4;
+      const rev = createPomoReverb(ctx, 0.8);
+      const dry = ctx.createGain(); dry.gain.value = 0.6;
+      const wet = ctx.createGain(); wet.gain.value = 0.4;
+      source.connect(bp);
+      bp.connect(dry).connect(master);
+      bp.connect(rev).connect(wet).connect(master);
+      events = () => {
+        const now = ctx.currentTime;
+        for (let i=0; i<8; i++) {
+          const t=now+Math.random()*0.5;
+          const o=ctx.createOscillator(), g=ctx.createGain();
+          o.type='sine'; o.frequency.value=800+Math.random()*4000;
+          g.gain.setValueAtTime(0.025, t);
+          g.gain.exponentialRampToValueAtTime(0.001, t+0.06);
+          o.connect(g).connect(master); o.start(t); o.stop(t+0.07);
+        }
+      };
+      break;
+    }
+    case 'ocean': {
+      source = ctx.createBufferSource();
+      source.buffer = createBrownNoiseBuf(ctx, 8);
+      source.loop = true;
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'lowpass'; bp.frequency.value = 600; bp.Q.value = 0.5;
+      lfoN = ctx.createOscillator(); lfoN.frequency.value = 0.15;
+      const lg = ctx.createGain(); lg.gain.value = 200;
+      lfoN.connect(lg).connect(bp.frequency); lfoN.start();
+      const rev = createPomoReverb(ctx, 2.5);
+      source.connect(bp).connect(rev).connect(master);
+      events = () => {
+        const now = ctx.currentTime;
+        for (let i=0; i<4; i++) {
+          const t=now+Math.random()*0.8;
+          const o=ctx.createOscillator(), g=ctx.createGain();
+          o.type='sine'; o.frequency.value=200+Math.random()*300;
+          g.gain.setValueAtTime(0.02, t);
+          g.gain.exponentialRampToValueAtTime(0.001, t+0.5);
+          o.connect(g).connect(master); o.start(t); o.stop(t+0.6);
+        }
+      };
+      break;
+    }
+    case 'fire': {
+      // 篝火: crackle buffer
+      const sr = ctx.sampleRate, len = sr * 4;
+      const crackle = ctx.createBuffer(1, len, sr);
+      const cd = crackle.getChannelData(0);
+      for (let i=0; i<len; i++) {
+        if (Math.random() < 0.003) {
+          const dur = 0.01 + Math.random()*0.05;
+          const amp = 0.3 + Math.random()*0.7;
+          for (let j=0; j<dur*sr && i+j<len; j++)
+            cd[i+j] = amp * Math.exp(-j/(0.005*sr));
+        }
+      }
+      source = ctx.createBufferSource();
+      source.buffer = crackle;
+      source.loop = true;
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass'; bp.frequency.value = 3000; bp.Q.value = 0.3;
+      const rumble = ctx.createBufferSource();
+      rumble.buffer = createBrownNoiseBuf(ctx, 8);
+      rumble.loop = true;
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = 200; lp.Q.value = 0.3;
+      const rg = ctx.createGain(); rg.gain.value = 0.4;
+      rumble.connect(lp).connect(rg).connect(master);
+      source.connect(bp).connect(master);
+      rumble.start();
+      break;
+    }
+    case 'forest': {
+      source = ctx.createBufferSource();
+      source.buffer = createPinkNoiseBuf(ctx, 8);
+      source.loop = true;
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass'; bp.frequency.value = 4500; bp.Q.value = 0.35;
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = 8000;
+      const rev = createPomoReverb(ctx, 2.0);
+      source.connect(bp).connect(lp).connect(rev).connect(master);
+      events = () => {
+        const now = ctx.currentTime;
+        for (let i=0; i<5; i++) {
+          const t=now+Math.random()*0.6;
+          const o=ctx.createOscillator(), g=ctx.createGain();
+          o.type='sine'; o.frequency.value=2000+Math.random()*4000;
+          const dur=0.02+Math.random()*0.06;
+          g.gain.setValueAtTime(0.015, t);
+          g.gain.exponentialRampToValueAtTime(0.001, t+dur);
+          o.connect(g).connect(master); o.start(t); o.stop(t+dur+0.01);
+        }
+      };
+      break;
+    }
+    case 'stream': {
+      source = ctx.createBufferSource();
+      source.buffer = createPinkNoiseBuf(ctx, 8);
+      source.loop = true;
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass'; bp.frequency.value = 3000; bp.Q.value = 0.4;
+      lfoN = ctx.createOscillator(); lfoN.frequency.value = 0.4;
+      const lg = ctx.createGain(); lg.gain.value = 800;
+      lfoN.connect(lg).connect(bp.frequency); lfoN.start();
+      source.connect(bp).connect(master);
+      events = () => {
+        const now = ctx.currentTime;
+        for (let i=0; i<3; i++) {
+          const t=now+Math.random()*0.3;
+          const o=ctx.createOscillator(), g=ctx.createGain();
+          o.frequency.value=3000+Math.random()*2000;
+          g.gain.setValueAtTime(0.008, t);
+          g.gain.exponentialRampToValueAtTime(0.001, t+0.03);
+          o.connect(g).connect(master); o.start(t); o.stop(t+0.04);
+        }
+      };
+      break;
+    }
+    default:
+      source = ctx.createBufferSource();
+      source.buffer = createPinkNoiseBuf(ctx, 8);
+      source.loop = true;
+      source.connect(master);
+  }
+
+  master.connect(ctx.destination);
+  master.gain.linearRampToValueAtTime(0.25, ctx.currentTime + 1.5);
+  source.start();
+  pomoBGMNodes = { source, gain: master, lfo: lfoN, filterLfo: flfoN };
+
+  if (events) {
+    events();
+    pomoBGMEventsTimer = setInterval(events, 2000);
+  }
+}
+
+function pomoBGMStop() {
+  if (pomoBGMEventsTimer) { clearInterval(pomoBGMEventsTimer); pomoBGMEventsTimer = null; }
+  if (pomoBGMNodes) {
+    try { pomoBGMNodes.source.stop(); } catch(e) {}
+    try { if (pomoBGMNodes.lfo) pomoBGMNodes.lfo.stop(); } catch(e) {}
+    try { if (pomoBGMNodes.filterLfo) pomoBGMNodes.filterLfo.stop(); } catch(e) {}
+    pomoBGMNodes = null;
+  }
+}
+
+// ═══════════════════ 番茄钟环境特效 ═══════════════════
+function setPomoSpaceEnv(bgmId) {
+  // 清除旧环境
+  if (pomoSpaceEnvGroup) {
+    pomoSpaceGroup.remove(pomoSpaceEnvGroup);
+    if (pomoSpaceEnvParticles) {
+      pomoSpaceEnvParticles.geometry.dispose();
+      pomoSpaceEnvParticles.material.dispose();
+      pomoSpaceEnvParticles = null;
+    }
+    pomoSpaceEnvGroup = null;
+  }
+
+  if (bgmId === 'off') return;
+
+  const envGroup = new THREE.Group();
+  pomoSpaceEnvGroup = envGroup;
+
+  switch (bgmId) {
+    case 'rain': {
+      // 雨滴粒子
+      const count = 800;
+      const geo = new THREE.BufferGeometry();
+      const pos = new Float32Array(count * 3);
+      const vel = new Float32Array(count);
+      for (let i = 0; i < count; i++) {
+        pos[i*3] = (Math.random() - 0.5) * 20;
+        pos[i*3+1] = 2 + Math.random() * 12;
+        pos[i*3+2] = (Math.random() - 0.5) * 20;
+        vel[i] = 4 + Math.random() * 8;
+      }
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      geo.userData = { vel, count };
+      const mat = new THREE.PointsMaterial({ color: 0x6688cc, size: 0.06, transparent: true, opacity: 0.6, depthWrite: false });
+      const rain = new THREE.Points(geo, mat);
+      envGroup.add(rain);
+      pomoSpaceEnvParticles = rain;
+
+      // 暗云色调
+      pomoSpaceGroup.children.forEach(c => {
+        if (c === pomoSpaceStarField) c.material.opacity = 0.3;
+      });
+      break;
+    }
+    case 'ocean': {
+      // 波浪平面
+      const waveGeo = new THREE.PlaneGeometry(30, 30, 40, 40);
+      waveGeo.rotateX(-Math.PI / 2);
+      const waveMat = new THREE.MeshBasicMaterial({ color: 0x114477, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false });
+      const wave = new THREE.Mesh(waveGeo, waveMat);
+      wave.position.y = -2;
+      wave.userData.waveTime = 0;
+      envGroup.add(wave);
+      pomoSpaceEnvParticles = wave;
+
+      // 蓝色调
+      pomoSpaceGroup.children.forEach(c => {
+        if (c === pomoSpaceStarField) c.material.color = new THREE.Color(0x334488);
+      });
+      break;
+    }
+    case 'fire': {
+      // 篝火粒子
+      const count = 300;
+      const geo = new THREE.BufferGeometry();
+      const pos = new Float32Array(count * 3);
+      const vel = new Float32Array(count * 3);
+      for (let i = 0; i < count; i++) {
+        pos[i*3] = (Math.random() - 0.5) * 3;
+        pos[i*3+1] = -1 + Math.random() * 2;
+        pos[i*3+2] = (Math.random() - 0.5) * 3;
+        vel[i*3] = (Math.random() - 0.5) * 0.5;
+        vel[i*3+1] = 1 + Math.random() * 3;
+        vel[i*3+2] = (Math.random() - 0.5) * 0.5;
+      }
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      geo.userData = { vel, count };
+      const mat = new THREE.PointsMaterial({ color: 0xff6600, size: 0.1, transparent: true, opacity: 0.7, depthWrite: false, blending: THREE.AdditiveBlending });
+      const fire = new THREE.Points(geo, mat);
+      fire.position.y = -1.5;
+      envGroup.add(fire);
+      pomoSpaceEnvParticles = fire;
+
+      // 暖光
+      pomoSpaceGroup.children.forEach(c => {
+        if (c === pomoSpaceStarField) c.material.color = new THREE.Color(0x553322);
+      });
+      break;
+    }
+    case 'forest': {
+      // 飘落叶子
+      const count = 200;
+      const geo = new THREE.BufferGeometry();
+      const pos = new Float32Array(count * 3);
+      const vel = new Float32Array(count * 3);
+      for (let i = 0; i < count; i++) {
+        pos[i*3] = (Math.random() - 0.5) * 16;
+        pos[i*3+1] = 2 + Math.random() * 12;
+        pos[i*3+2] = (Math.random() - 0.5) * 16;
+        vel[i*3] = (Math.random() - 0.5) * 0.8;
+        vel[i*3+1] = -0.3 - Math.random() * 0.5;
+        vel[i*3+2] = (Math.random() - 0.5) * 0.8;
+      }
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      geo.userData = { vel, count };
+      const mat = new THREE.PointsMaterial({ color: 0x44aa44, size: 0.12, transparent: true, opacity: 0.5, depthWrite: false });
+      const leaves = new THREE.Points(geo, mat);
+      envGroup.add(leaves);
+      pomoSpaceEnvParticles = leaves;
+
+      // 绿色调
+      pomoSpaceGroup.children.forEach(c => {
+        if (c === pomoSpaceStarField) c.material.color = new THREE.Color(0x224422);
+      });
+      break;
+    }
+    case 'stream': {
+      // 水流粒子
+      const count = 400;
+      const geo = new THREE.BufferGeometry();
+      const pos = new Float32Array(count * 3);
+      const vel = new Float32Array(count * 3);
+      for (let i = 0; i < count; i++) {
+        pos[i*3] = (Math.random() - 0.5) * 14;
+        pos[i*3+1] = -2 + Math.random() * 6;
+        pos[i*3+2] = (Math.random() - 0.5) * 14;
+        vel[i*3] = (Math.random() - 0.5) * 0.3;
+        vel[i*3+1] = (Math.random() - 0.5) * 0.2;
+        vel[i*3+2] = 0.5 + Math.random() * 1.5;
+      }
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      geo.userData = { vel, count };
+      const mat = new THREE.PointsMaterial({ color: 0x44ccdd, size: 0.08, transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending });
+      const stream = new THREE.Points(geo, mat);
+      envGroup.add(stream);
+      pomoSpaceEnvParticles = stream;
+
+      // 蓝绿色调
+      pomoSpaceGroup.children.forEach(c => {
+        if (c === pomoSpaceStarField) c.material.color = new THREE.Color(0x225555);
+      });
+      break;
+    }
+  }
+
+  pomoSpaceGroup.add(envGroup);
+}
+
+function initPomoBGM() {
+  // 默认静音，用户按左右键切换
+  pomoSpaceAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+function applyBGMPreset(idx) {
+  bgmPresetIdx = idx;
+  const item = BGM_LIST[idx];
+  pomoBGMStart(item.id);
+  setPomoSpaceEnv(item.id);
+  showBubble(`🎵 ${item.name}`, new THREE.Vector3(0, 4, 0));
+  // 更新 HUD
+  const bgmNameEl = document.getElementById('pomo-space-bgm-name');
+  if (bgmNameEl) bgmNameEl.textContent = `${item.icon} ${item.name}`;
+}
+
+function nextBGM() {
+  bgmPresetIdx = (bgmPresetIdx + 1) % BGM_LIST.length;
+  applyBGMPreset(bgmPresetIdx);
+}
+
+function prevBGM() {
+  bgmPresetIdx = (bgmPresetIdx - 1 + BGM_LIST.length) % BGM_LIST.length;
+  applyBGMPreset(bgmPresetIdx);
+}
+
+function pomoVolumeUp() {
+  bgmVolume = Math.min(0.5, bgmVolume + 0.05);
+  if (pomoBGMNodes) pomoBGMNodes.gain.gain.value = bgmVolume;
+  showBubble(`🔊 音量 ${Math.round(bgmVolume * 100)}%`, new THREE.Vector3(0, 4, 0));
+}
+
+function pomoVolumeDown() {
+  bgmVolume = Math.max(0, bgmVolume - 0.05);
+  if (pomoBGMNodes) pomoBGMNodes.gain.gain.value = bgmVolume;
+  if (bgmVolume === 0) showBubble('🔇 静音', new THREE.Vector3(0, 4, 0));
+  else showBubble(`🔉 音量 ${Math.round(bgmVolume * 100)}%`, new THREE.Vector3(0, 4, 0));
+}
+
+function updatePomoBGM() {
+  // 自然音景不需要逐帧微调，保持不动即可
+}
+
+// ═══════════════════ 语音笔记 ═══════════════════
+let mediaRecorder = null, audioChunks = [];
+
+function startVoiceNote() {
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop();
+    showBubble('⏹️ 录音结束', new THREE.Vector3(0, 4, 0));
+    return;
+  }
+  navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+    audioChunks = [];
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+    mediaRecorder.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+      const blob = new Blob(audioChunks, { type: 'audio/webm' });
+      const url = URL.createObjectURL(blob);
+      pomoNotes.push({ text: '🎙️ 语音笔记', time: new Date().toLocaleTimeString(), audioUrl: url });
+      showBubble(`🎙️ 语音笔记已记录 (${pomoNotes.length})`, new THREE.Vector3(0, 4, 0));
+      // 3D 空间显示语音标记
+      if (pomoSpaceGroup) {
+        const angle = (pomoNotes.length % 3) / 3 * Math.PI * 2;
+        const sprite = makeTextSprite('🎙️', { fontSize: 36, color: '#ff6644', scale: 0.8 });
+        sprite.position.set(Math.cos(angle) * 4, 2 + pomoNotes.length * 0.5, Math.sin(angle) * 4);
+        pomoSpaceGroup.add(sprite);
+        sprite.userData.isNote = true;
+      }
+    };
+    mediaRecorder.start();
+    showBubble('🔴 录音中... 再按 Space 停止', new THREE.Vector3(0, 4, 0));
+  }).catch(() => {
+    showBubble('⚠️ 无法访问麦克风', new THREE.Vector3(0, 4, 0));
+  });
+}
+
+
+
+function updateEnergyTower() {
+  if (!towerGlowMesh) return;
+  if (pomoState.state === 'work') {
+    towerGlowMesh.material.color.setHex(0xff3333);
+    towerGlowMesh.material.opacity = 0.6 + Math.sin(elapsed * 3) * 0.2;
+    towerGlowMesh.scale.setScalar(1 + Math.sin(elapsed * 3) * 0.15);
+  } else if (pomoState.state === 'break') {
+    towerGlowMesh.material.color.setHex(0x33ff66);
+    towerGlowMesh.material.opacity = 0.5 + Math.sin(elapsed * 1.5) * 0.1;
+    towerGlowMesh.scale.setScalar(1 + Math.sin(elapsed * 1.5) * 0.05);
+  } else {
+    towerGlowMesh.material.color.setHex(0x4488ff);
+    towerGlowMesh.material.opacity = 0.4;
+    towerGlowMesh.scale.setScalar(1);
+  }
+}
+
+// ═══════════════════ 观景台（Platonic 堆叠） ═══════════════════
+let obsGroup = null;
+function createObservatory() {
+  obsGroup = new THREE.Group();
+  const platData = createFractalTree(137, 3, 2.5, 170);
+  const platGeo = new THREE.BufferGeometry();
+  platGeo.setAttribute('position', new THREE.BufferAttribute(platData.positions, 3));
+  platGeo.setAttribute('color', new THREE.BufferAttribute(platData.colors, 3));
+  platGeo.setIndex(new THREE.BufferAttribute(platData.indices, 1));
+  platGeo.computeVertexNormals();
+  const platMesh = new THREE.Mesh(platGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4, metalness: 0.5 }));
+  platMesh.castShadow = true;
+  obsGroup.add(platMesh);
+
+  const op = new THREE.Vector3(-8, 0, -8);
+  obsGroup.position.copy(op);
+  scene.add(obsGroup);
+  registerInteractable(op, 2.5, '🔭 查看数据', () => {
+    const s = gameState;
+    showBubble(`Lv.${s.level} | 🍅${s.todayPomo} | 🏋️${s.todayWorkouts} | 🧘${s.todayMeditations} | 🔥${s.streak}天`, getBubblePos(currentInteractable));
+  }, 1.2, 3);
+  registerCollider(op, 1.2);
+}
+createObservatory();
+
+// ═══════════════════ 灯塔（Fibonacci 螺旋） ═══════════════════
+let lhGroup = null, lighthouseFlame = null;
+function createLighthouse() {
+  lhGroup = new THREE.Group();
+  const fibData = createFractalTree(271, 4, 3, 35);
+  const fibGeo = new THREE.BufferGeometry();
+  fibGeo.setAttribute('position', new THREE.BufferAttribute(fibData.positions, 3));
+  fibGeo.setAttribute('color', new THREE.BufferAttribute(fibData.colors, 3));
+  fibGeo.setIndex(new THREE.BufferAttribute(fibData.indices, 1));
+  fibGeo.computeVertexNormals();
+  const fibMesh = new THREE.Mesh(fibGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4, metalness: 0.5 }));
+  fibMesh.castShadow = true;
+  lhGroup.add(fibMesh);
+
+  const flame = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 12),
+    new THREE.MeshBasicMaterial({ color: 0xff6600, transparent: true, opacity: 0.9 }));
+  flame.position.y = 5.5;
+  lighthouseFlame = flame;
+  lhGroup.add(flame);
+
+  const flameHalo = new THREE.Mesh(new THREE.SphereGeometry(0.5, 12, 12),
+    new THREE.MeshBasicMaterial({ color: 0xff8800, transparent: true, opacity: 0.3 }));
+  flameHalo.position.y = 5.5;
+  lhGroup.add(flameHalo);
+
+  const lp = new THREE.Vector3(0, 0, -10);
+  lhGroup.position.copy(lp);
+  scene.add(lhGroup);
+  registerInteractable(lp, 2.5, '🔥 连击灯塔', () => {
+    const s = gameState.streak || 0;
+    showBubble(`连击 ${s} 天 🔥`, getBubblePos(currentInteractable));
+  }, 0.6, 6);
+  registerCollider(lp, 0.6);
+}
+createLighthouse();
+
+function updateLighthouse() {
+  if (!lighthouseFlame) return;
+  const s = gameState.streak || 0;
+  lighthouseFlame.scale.setScalar(Math.min(3, 1 + s * 0.2));
+}
+
+// ═══════════════════ 海滩 ═══════════════════
+let beachGroup = null;
+function createBeachArea() {
+  beachGroup = new THREE.Group();
+  // 分形树做棕榈树
+  const treeData = createFractalTree(999, 3, 2.5, 35);
+  const treeGeo = new THREE.BufferGeometry();
+  treeGeo.setAttribute('position', new THREE.BufferAttribute(treeData.positions, 3));
+  treeGeo.setAttribute('color', new THREE.BufferAttribute(treeData.colors, 3));
+  treeGeo.setIndex(new THREE.BufferAttribute(treeData.indices, 1));
+  treeGeo.computeVertexNormals();
+  const tree = new THREE.Mesh(treeGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7 }));
+  tree.scale.setScalar(1.5);
+  tree.castShadow = true;
+  beachGroup.add(tree);
+
+  const bp = new THREE.Vector3(8, 0, 8);
+  beachGroup.position.copy(bp);
+  scene.add(beachGroup);
+  registerInteractable(bp, 3, '🏖️ 切换场景', () => {
+    const sc = ['day', 'dusk', 'night', 'dawn'], lb = ['☀️ 白天', '🌅 黄昏', '🌙 夜晚', '🌄 黎明'];
+    const ni = (sc.indexOf(currentScene) + 1) % sc.length;
+    setScene(sc[ni]);
+    showBubble(lb[ni], getBubblePos(currentInteractable));
+  }, 0.8, 3.5);
+  registerCollider(bp, 0.8);
+}
+createBeachArea();
+
+// ═══════════════════ 装饰：数学分形树 + Mandelbrot 雕塑 ═══════════════════
+const decorGroups = [];
+function addDecorations() {
+  // 分形树散布
+  for (let i = 0; i < 15; i++) {
+    const a = Math.random() * Math.PI * 2, r = 10 + Math.random() * 8;
+    const x = Math.cos(a) * r, z = Math.sin(a) * r;
+    const treeData = createFractalTree(100 + i, 2 + Math.floor(Math.random() * 2), 2, [200, 170, 15, 35][i % 4]);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(treeData.positions, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(treeData.colors, 3));
+    geo.setIndex(new THREE.BufferAttribute(treeData.indices, 1));
+    geo.computeVertexNormals();
+    const tree = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7 }));
+    tree.position.set(x, 0, z);
+    tree.scale.setScalar(0.6 + Math.random() * 0.8);
+    tree.castShadow = true;
+    scene.add(tree);
+    decorGroups.push(tree);
+    registerCollider(new THREE.Vector3(x, 0, z), 0.3);
+  }
+
+  // Mandelbrot 雕塑散布
+  for (let i = 0; i < 5; i++) {
+    const a = Math.random() * Math.PI * 2, r = 8 + Math.random() * 6;
+    const x = Math.cos(a) * r, z = Math.sin(a) * r;
+    const scData = createFractalTree(500 + i, 3, 1.5, 170);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(scData.positions, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(scData.colors, 3));
+    geo.setIndex(new THREE.BufferAttribute(scData.indices, 1));
+    geo.computeVertexNormals();
+    const sc = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.3 }));
+    sc.position.set(x, 0, z);
+    sc.castShadow = true;
+    scene.add(sc);
+    decorGroups.push(sc);
+  }
+
+  // 雪人 NPC
+  const sg = new THREE.Group();
+  const sb = new THREE.Mesh(new THREE.SphereGeometry(0.4, 12, 12), new THREE.MeshStandardMaterial({ color: 0xf0f5fa }));
+  sb.position.y = 0.4; sg.add(sb);
+  const sh = new THREE.Mesh(new THREE.SphereGeometry(0.25, 12, 12), new THREE.MeshStandardMaterial({ color: 0xf0f5fa }));
+  sh.position.y = 0.85; sg.add(sh);
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.2, 6), new THREE.MeshStandardMaterial({ color: 0xff6600 }));
+  nose.position.set(0.25, 0.85, 0); nose.rotation.z = -Math.PI / 2; sg.add(nose);
+  const hatBrim = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.03, 12), new THREE.MeshStandardMaterial({ color: 0x222222 }));
+  hatBrim.position.y = 1.05; sg.add(hatBrim);
+  const hatTop = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, 0.2, 8), new THREE.MeshStandardMaterial({ color: 0x222222 }));
+  hatTop.position.y = 1.17; sg.add(hatTop);
+  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.03, 6, 6), new THREE.MeshStandardMaterial({ color: 0x111111 }));
+  eyeL.position.set(0.2, 0.92, 0.15); sg.add(eyeL);
+  const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.03, 6, 6), new THREE.MeshStandardMaterial({ color: 0x111111 }));
+  eyeR.position.set(0.2, 0.92, -0.15); sg.add(eyeR);
+  const scarf = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.04, 6, 16), new THREE.MeshStandardMaterial({ color: 0xcc2222 }));
+  scarf.rotation.x = Math.PI / 2; scarf.position.y = 0.7; sg.add(scarf);
+  sg.position.set(-5, 0, 3);
+  scene.add(sg);
+  decorGroups.push(sg);
+  registerInteractable(new THREE.Vector3(-5, 0, 3), 2, '聊天 ☃️', () => {
+    const tips = ['今天完成了什么？', '加油！', '企鹅岛欢迎你~', '记得休息哦!', '你是最棒的！'];
+    showBubble(tips[Math.floor(Math.random() * tips.length)], getBubblePos(currentInteractable));
+  }, 0.6, 1.4);
+  registerCollider(new THREE.Vector3(-5, 0, 3), 0.6);
+}
+addDecorations();
+
+// ═══════════════════ 云朵 ═══════════════════
+window._clouds = [];
+for (let i = 0; i < 10; i++) {
+  const cloud = new THREE.Group();
+  const cloudMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, transparent: true, opacity: 0.85 });
+  const n = 3 + Math.floor(Math.random() * 3);
+  for (let j = 0; j < n; j++) {
+    const r = 0.8 + Math.random() * 1.2;
+    const puff = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 8), cloudMat);
+    puff.position.set(j * 1.2 - n * 0.6, Math.random() * 0.4, Math.random() * 0.5 - 0.25);
+    puff.scale.y = 0.5;
+    cloud.add(puff);
+  }
+  cloud.position.set((Math.random() - 0.5) * 80, 12 + Math.random() * 8, (Math.random() - 0.5) * 80);
+  cloud.scale.setScalar(0.8 + Math.random() * 0.6);
+  scene.add(cloud);
+  window._clouds.push(cloud);
+}
+
+// ═══════════════════ 星空 ═══════════════════
+const STAR_COUNT = 300;
+const starGeo = new THREE.BufferGeometry();
+const starPositions = new Float32Array(STAR_COUNT * 3);
+for (let i = 0; i < STAR_COUNT; i++) {
+  const theta = Math.random() * Math.PI * 2;
+  const phi = Math.random() * Math.PI * 0.45;
+  const r = 40 + Math.random() * 15;
+  starPositions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+  starPositions[i * 3 + 1] = r * Math.cos(phi) + 5;
+  starPositions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+}
+starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.15, transparent: true, opacity: 0, depthWrite: false, sizeAttenuation: true });
+const stars = new THREE.Points(starGeo, starMat);
+scene.add(stars);
+window._stars = { mesh: stars, mat: starMat };
+
+// ═══════════════════ 极光 ═══════════════════
+const auroraGeo = new THREE.PlaneGeometry(80, 20, 60, 15);
+const auroraMat = new THREE.ShaderMaterial({
+  side: THREE.DoubleSide, transparent: true, depthWrite: false,
+  uniforms: { uTime: { value: 0 } },
+  vertexShader: `
+    uniform float uTime; varying vec2 vUv;
+    void main(){ vUv=uv; vec3 p=position; p.y+=sin(p.x*0.3+uTime*0.4)*2.0; p.z+=sin(p.x*0.5+uTime*0.3)*1.0;
+    gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.0); }`,
+  fragmentShader: `
+    uniform float uTime; varying vec2 vUv;
+    void main(){
+      float wave=sin(vUv.x*6.0+uTime*0.8)*0.5+0.5,pulse=sin(vUv.x*3.0+uTime*1.5)*0.3+0.7;
+      vec3 c=mix(mix(vec3(0.1,0.9,0.4),vec3(0.2,0.3,0.9),wave),vec3(0.6,0.1,0.8),sin(vUv.x*4.0+uTime*0.6)*0.5+0.5);
+      float alpha=smoothstep(0.0,0.3,vUv.y)*smoothstep(1.0,0.7,vUv.y)*0.55*pulse;
+      gl_FragColor=vec4(c,alpha); }`,
+});
+window._aurora = new THREE.Mesh(auroraGeo, auroraMat);
+window._aurora.position.set(0, 20, -25);
+window._aurora.rotation.x = -0.2;
+window._aurora.visible = false;
+scene.add(window._aurora);
+
+// ═══════════════════ 海鸥 ═══════════════════
+const gullCount = 6;
+window._gulls = [];
+const gullMat = new THREE.MeshBasicMaterial({ color: 0xeeeeee, side: THREE.DoubleSide });
+for (let i = 0; i < gullCount; i++) {
+  const gull = new THREE.Group();
+  const wingShape = new THREE.Shape();
+  wingShape.moveTo(0, 0); wingShape.lineTo(0.6, 0.2); wingShape.lineTo(0.5, 0); wingShape.lineTo(0, -0.04);
+  const wingGeo = new THREE.ShapeGeometry(wingShape);
+  const lWing = new THREE.Mesh(wingGeo, gullMat); lWing.rotation.y = Math.PI * 0.1; gull.add(lWing);
+  const rWing = new THREE.Mesh(wingGeo, gullMat); rWing.rotation.y = -Math.PI * 0.1; rWing.scale.x = -1; gull.add(rWing);
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 4), gullMat); gull.add(body);
+  gull.scale.setScalar(1.5);
+  gull.position.set((Math.random() - 0.5) * 30, 6 + Math.random() * 4, (Math.random() - 0.5) * 30);
+  gull.userData = { vx: 0.8 + Math.random() * 0.5, vz: (Math.random() - 0.5) * 0.3, wingPhase: Math.random() * Math.PI * 2, lWing, rWing };
+  scene.add(gull);
+  window._gulls.push(gull);
+}
+
+// ═══════════════════ 固定交互注册 ═══════════════════
+function registerFixedInteractables() {
+  registerInteractable(new THREE.Vector3(0, 0, 0), 3, '🍅 番茄钟能量塔', () => {
+    if (pomoState.active) {
+      if (pomoState.state === 'work') showBubble(`专注中 🔴 ${Math.floor(pomoState.remaining / 60)}:${(pomoState.remaining % 60).toString().padStart(2, '0')}`, getBubblePos(currentInteractable));
+      else showBubble(`休息中 🟢 ${Math.floor(pomoState.remaining / 60)}:${(pomoState.remaining % 60).toString().padStart(2, '0')}`, getBubblePos(currentInteractable));
+    } else showBubble('进入建筑开始番茄钟吧~', getBubblePos(currentInteractable));
+  }, 1, 3);
+  registerInteractable(new THREE.Vector3(-8, 0, -8), 2.5, '🔭 查看数据', () => {
+    const s = gameState;
+    showBubble(`Lv.${s.level} | 🍅${s.todayPomo} | 🏋️${s.todayWorkouts} | 🧘${s.todayMeditations} | 🔥${s.streak}天`, getBubblePos(currentInteractable));
+  }, 1.2, 3);
+  registerInteractable(new THREE.Vector3(0, 0, -10), 2.5, '🔥 连击灯塔', () => {
+    const s = gameState.streak || 0;
+    showBubble(`连击 ${s} 天 🔥`, getBubblePos(currentInteractable));
+  }, 0.6, 6);
+  registerInteractable(new THREE.Vector3(8, 0, 8), 3, '🏖️ 切换场景', () => {
+    const sc = ['day', 'dusk', 'night', 'dawn'], lb = ['☀️ 白天', '🌅 黄昏', '🌙 夜晚', '🌄 黎明'];
+    const ni = (sc.indexOf(currentScene) + 1) % sc.length;
+    setScene(sc[ni]);
+    showBubble(lb[ni], getBubblePos(currentInteractable));
+  }, 0.8, 3.5);
+  registerInteractable(new THREE.Vector3(-5, 0, 3), 2, '聊天 ☃️', () => {
+    const tips = ['今天完成了什么？', '加油！', '企鹅岛欢迎你~', '记得休息哦!', '你是最棒的！'];
+    showBubble(tips[Math.floor(Math.random() * tips.length)], getBubblePos(currentInteractable));
+  }, 0.6, 1.4);
+  // 传送门（交互在 registerFixedInteractables 里注册，避免被 syncTaskBuildings 清掉）
+  registerInteractable(new THREE.Vector3(5, 3, 0), 20, '🌟 传送门 · 进入选择任务', () => {
+    showPortalPanel();
+  }, 2.8, 6);
+}
+
+// ═══════════════════ 场景切换 ═══════════════════
+function setScene(n) {
+  currentScene = n;
+  skyUniforms.uScene.value = { day: 0, dusk: 1, night: 2, dawn: 3 }[n] || 0;
+  setSceneLighting(n);
+  const ps = PS[n] || PS.day;
+  pMat.color.setHex(ps.c); pMat.size = ps.s; pMat.opacity = ps.o;
+  for (let i = 0; i < PC; i++) pVel[i * 3 + 1] = ps.vy - Math.random() * 0.01;
+  document.getElementById('scene-label').textContent = { day: '☀️ 白天', dusk: '🌅 黄昏', night: '🌙 夜晚', dawn: '🌄 黎明' }[n] || '☀️ 白天';
+}
+window.setScene = setScene;
+
+// ═══════════════════ 天气同步 ═══════════════════
+let currentWeather = 'clear';
+let weatherParticles = null; // 雨/雪粒子系统
+
+function createWeatherParticles(type) {
+  if (weatherParticles) { scene.remove(weatherParticles); weatherParticles = null; }
+  if (type === 'clear' || type === 'cloudy') return;
+
+  const count = type === 'snow' ? 300 : 800;
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(count * 3);
+  const range = 40;
+
+  for (let i = 0; i < count; i++) {
+    positions[i * 3] = (Math.random() - 0.5) * range * 2;
+    positions[i * 3 + 1] = Math.random() * 25;
+    positions[i * 3 + 2] = (Math.random() - 0.5) * range * 2;
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+  const mat = new THREE.PointsMaterial({
+    color: type === 'snow' ? 0xffffff : 0x8899cc,
+    size: type === 'snow' ? 0.15 : 0.06,
+    transparent: true,
+    opacity: type === 'snow' ? 0.8 : 0.5,
+    depthWrite: false,
+  });
+
+  weatherParticles = new THREE.Points(geo, mat);
+  weatherParticles._type = type;
+  weatherParticles._positions = positions;
+  weatherParticles._count = count;
+  scene.add(weatherParticles);
+}
+
+function updateWeatherParticles(dt, camPos) {
+  if (!weatherParticles) return;
+  const p = weatherParticles._positions;
+  const count = weatherParticles._count;
+  const range = 40;
+  const speed = weatherParticles._type === 'snow' ? 1.5 : 12;
+
+  for (let i = 0; i < count; i++) {
+    p[i * 3 + 1] -= speed * dt;
+    if (p[i * 3 + 1] < -2) {
+      p[i * 3 + 1] = 22 + Math.random() * 5;
+      p[i * 3] = camPos.x + (Math.random() - 0.5) * range * 2;
+      p[i * 3 + 2] = camPos.z + (Math.random() - 0.5) * range * 2;
+    }
+  }
+  weatherParticles.geometry.attributes.position.needsUpdate = true;
+  weatherParticles.position.set(camPos.x, 0, camPos.z);
+}
+
+async function syncWeather() {
+  try {
+    const res = await apiFetch('/api/weather');
+    if (res.error) return;
+
+    const { scene, weather, weatherDesc, temp } = res;
+    setScene(scene);
+    currentWeather = weather;
+    createWeatherParticles(weather);
+
+    // 更新 HUD 天气标签
+    const label = document.getElementById('scene-label');
+    const weatherIcons = { clear: '☀️', cloudy: '☁️', rain: '🌧️', snow: '❄️', fog: '🌫️' };
+    const icon = weatherIcons[weather] || '☀️';
+    const sceneNames = { day: '白天', dusk: '黄昏', night: '夜晚', dawn: '黎明' };
+    label.textContent = `${icon} ${weatherDesc || weather} · ${temp}°C · ${sceneNames[scene]}`;
+  } catch(e) { console.warn('Weather sync failed:', e); }
+}
+
+// 每5分钟同步一次
+syncWeather();
+setInterval(syncWeather, 5 * 60 * 1000);
+
+// ═══════════════════ 气泡 ═══════════════════
+let bubbleTimeout, bubbleWorldPos = null;
+function showBubble(text, wp) {
+  const el = document.getElementById('penguin-bubble');
+  el.textContent = text;
+  el.classList.add('show');
+  bubbleWorldPos = wp || playerPos.clone();
+  clearTimeout(bubbleTimeout);
+  bubbleTimeout = setTimeout(() => { el.classList.remove('show'); bubbleWorldPos = null; }, 2500);
+}
+function updateBubblePosition() {
+  const el = document.getElementById('penguin-bubble');
+  if (!el.classList.contains('show') || !bubbleWorldPos) return;
+  // 第一人称：气泡固定在屏幕上方
+  el.style.left = '50%';
+  el.style.top = '15%';
+  el.style.transform = 'translate(-50%,-50%)';
+}
+
+// ═══════════════════ 任务面板 ═══════════════════
+function toggleTaskPanel() {
+  document.getElementById('task-panel').classList.toggle('show');
+  if (document.getElementById('task-panel').classList.contains('show')) renderTaskPanel();
+}
+function renderTaskPanel() {
+  const list = document.getElementById('task-list');
+  if (!todos.length) { list.innerHTML = '<div style="opacity:.5">暂无任务</div>'; return; }
+  list.innerHTML = todos.map(t => {
+    const dc = t.status === 'completed' ? 'completed' : t.status;
+    return `<div class="task-item ${t.status === 'completed' ? 'completed' : ''}" onclick="handleTaskClick('${t.id}','${t.status}')">
+      <span class="task-dot ${dc}"></span><span class="task-title">${t.title || '未命名'}</span></div>`;
+  }).join('');
+}
+window.handleTaskClick = function(id, s) {
+  if (s === 'pending') apiUpdateTodo(id, { status: 'in_progress' });
+  else if (s === 'in_progress') apiUpdateTodo(id, { status: 'completed' });
+  setTimeout(() => { loadTodos(); renderTaskPanel(); }, 500);
+};
+
+// ═══════════════════ HUD ═══════════════════
+function updateHUD() {
+  fish = (gameState.totalPomo || 0) * 3 + (gameState.todayWorkouts || 0) * 5 + (gameState.todayMeditations || 0) * 2;
+  document.getElementById('fish-count').textContent = `🐟 ${fish}`;
+  const gt = penguinGrowth < 10 ? '🐣 幼崽' : '🐧 少年';
+  const m = penguinMood > 70 ? '😊' : (penguinMood > 40 ? '😐' : '😢');
+  document.getElementById('penguin-info').textContent = `${gt} · ${m}`;
+}
+
+// ═══════════════════ 动画循环 ═══════════════════
+const clock = new THREE.Clock();
+let elapsed = 0;
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.1);
+  elapsed += dt;
+
+  const gp = parentGamepad;
+  if (gp?.buttons?.length >= 4) {
+    const bA = gp.buttons[0], bB = gp.buttons[1];
+    if (bA && !prevBtnA) { if (inPomoSpace) exitPomoSpace(); else if (inDungeon) exitDungeon(); else doInteract(); }
+    if (bB && !prevBtnB) { if (inPomoSpace) exitPomoSpace(); else if (inDungeon) exitDungeon(); else window.parent.postMessage('closePenguinIsland', '*'); }
+    prevBtnA = bA; prevBtnB = bB;
+  } else if (gamepadIndex >= 0) {
+    const g = navigator.getGamepads()[gamepadIndex];
+    if (g) {
+      const bA = g.buttons[0]?.pressed, bB = g.buttons[1]?.pressed;
+      if (bA && !prevBtnA) { if (inPomoSpace) exitPomoSpace(); else if (inDungeon) exitDungeon(); else doInteract(); }
+      if (bB && !prevBtnB) { if (inPomoSpace) exitPomoSpace(); else if (inDungeon) exitDungeon(); else window.parent.postMessage('closePenguinIsland', '*'); }
+      prevBtnA = bA; prevBtnB = bB;
+    }
+  }
+
+  skyUniforms.uTime.value = elapsed;
+
+  const sp = particleSystem.geometry.attributes.position;
+  if (sp) {
+    for (let i = 0; i < PC; i++) {
+      let x = sp.getX(i) + pVel[i * 3] + Math.sin(elapsed + i) * 0.003;
+      let y = sp.getY(i) + pVel[i * 3 + 1];
+      let z = sp.getZ(i) + pVel[i * 3 + 2];
+      if (y < -2) { y = 20; x = (Math.random() - 0.5) * 60; z = (Math.random() - 0.5) * 60; }
+      sp.setXYZ(i, x, y, z);
+    }
+    sp.needsUpdate = true;
+  }
+
+  if (lighthouseFlame) {
+    lighthouseFlame.scale.x = lighthouseFlame.scale.y * (1 + Math.sin(elapsed * 5) * 0.1);
+    lighthouseFlame.material.opacity = 0.7 + Math.sin(elapsed * 8) * 0.2;
+  }
+
+  updatePhysics(dt);
+  updateInteractions();
+  updateDungeon(dt);
+  updatePortal(dt);
+  updatePomoSpace(dt);
+  updateEnergyTower();
+  updateBubblePosition();
+
+  if (seaMat) {
+    seaMat.uniforms.uTime.value = elapsed;
+    seaMat.uniforms.uScene.value = skyUniforms.uScene.value;
+    seaMat.uniforms.uCamPos.value.copy(camera.position);
+  }
+
+  // 天空球 + 海面跟随相机（无限世界）
+  skyDome.position.copy(camera.position);
+  seaMesh.position.x = camera.position.x;
+  seaMesh.position.z = camera.position.z;
+
+  // 天气粒子（雨/雪）
+  updateWeatherParticles(dt, camera.position);
+
+  // 云朵
+  if (window._clouds) window._clouds.forEach((c, i) => {
+    c.position.x += 0.3 * (0.5 + i * 0.15) * dt;
+    if (c.position.x > 50) c.position.x = -50;
+  });
+
+  // 星空
+  if (window._stars && window._stars.mat.opacity > 0) {
+    window._stars.mat.size = 0.15 + Math.sin(elapsed * 2) * 0.03;
+  }
+
+  // 极光
+  if (window._aurora) {
+    window._aurora.visible = (currentScene === 'night');
+    if (window._aurora.visible) window._aurora.material.uniforms.uTime.value = elapsed;
+  }
+
+  // 海鸥
+  if (window._gulls) {
+    window._gulls.forEach((g, i) => {
+      g.position.x += g.userData.vx * dt;
+      g.position.z += g.userData.vz * dt;
+      g.position.y += Math.sin(elapsed * 1.5 + i * 2) * 0.01;
+      const wingAngle = Math.sin(elapsed * 6 + g.userData.wingPhase) * 0.4;
+      g.userData.lWing.rotation.z = wingAngle;
+      g.userData.rWing.rotation.z = -wingAngle;
+      g.rotation.y = Math.atan2(-g.userData.vz, -g.userData.vx);
+      if (g.position.x > 35) g.position.x = -35;
+      if (g.position.x < -35) g.position.x = 35;
+      if (g.position.z > 25) g.position.z = -25;
+      if (g.position.z < -25) g.position.z = 25;
+    });
+  }
+
+  composer.render();
+}
+
+// ═══════════════════ 初始化 ═══════════════════
+updateHUD();
+// 初始场景由天气同步设置，先默认白天，syncWeather 会覆盖
+setScene('day');
+syncWeather();
+// 初始加载区块并计算出生位置（岛屿边缘外，能看见全貌）
+updateChunks(new THREE.Vector3(0, 0, 0));
+playerPos.set(20, 5, 20);
+playerOnGround = false;
+// 朝向岛屿中心
+yaw = Math.PI * 1.25;
+pitch = -0.3;
+// 操控提示 8 秒后淡出
+setTimeout(() => {
+  document.getElementById('controls-hint').style.opacity = '0';
+}, 8000);
+animate();
+connectWS();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>

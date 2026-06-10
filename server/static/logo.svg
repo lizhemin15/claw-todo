@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!-- 🦞 超二次元Q版龙虾 Logo - chibi kawaii -->
+  <defs>
+    <filter id="sketch" x="-5%" y="-5%" width="110%" height="110%">
+      <feTurbulence type="turbulence" baseFrequency="0.015" numOctaves="2" result="noise"/>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.5" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2.5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <radialGradient id="blush" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ff8fa3" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#ff8fa3" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bodyGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff7b8a"/>
+      <stop offset="40%" stop-color="#e94560"/>
+      <stop offset="100%" stop-color="#c23152"/>
+    </linearGradient>
+    <linearGradient id="headGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff8fa3"/>
+      <stop offset="100%" stop-color="#e94560"/>
+    </linearGradient>
+    <radialGradient id="eyeShine" cx="30%" cy="25%" r="60%">
+      <stop offset="0%" stop-color="#fff" stop-opacity="1"/>
+      <stop offset="50%" stop-color="#fff" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- 背景圆 -->
+  <circle cx="100" cy="100" r="92" fill="#0f0f1a"/>
+  <circle cx="100" cy="100" r="90" fill="none" stroke="#e94560" stroke-width="2" stroke-dasharray="6,4" filter="url(#sketch)" opacity="0.6"/>
+  
+  <!-- ====== Q版大头小身 ====== -->
+  
+  <!-- 身体 - 小巧圆润 -->
+  <ellipse cx="100" cy="125" rx="30" ry="32" fill="url(#bodyGrad)" stroke="#ff8fa3" stroke-width="2.5" filter="url(#sketch)"/>
+  <!-- 身体纹理 -->
+  <path d="M76 118 Q100 112 124 118" fill="none" stroke="#ff8fa3" stroke-width="1.5" stroke-dasharray="3,3" opacity="0.6"/>
+  <path d="M78 128 Q100 122 122 128" fill="none" stroke="#ff8fa3" stroke-width="1.5" stroke-dasharray="3,3" opacity="0.6"/>
+
+  <!-- 头 - 超大Q版头 -->
+  <ellipse cx="100" cy="72" rx="42" ry="36" fill="url(#headGrad)" stroke="#ff8fa3" stroke-width="2.5" filter="url(#sketch)"/>
+
+  <!-- ====== 超大二次元眼睛 - 占头部60% ====== -->
+  <!-- 左眼白 -->
+  <ellipse cx="82" cy="68" rx="16" ry="18" fill="#fff" stroke="#2a2a4a" stroke-width="2.5"/>
+  <!-- 左眼虹膜 -->
+  <ellipse cx="84" cy="70" rx="10" ry="12" fill="#1a1a2e"/>
+  <!-- 左眼瞳孔 -->
+  <ellipse cx="85" cy="71" rx="6" ry="7" fill="#0a0a15"/>
+  <!-- 左眼大高光 -->
+  <ellipse cx="88" cy="64" rx="5" ry="4.5" fill="#fff" opacity="0.95"/>
+  <!-- 左眼小高光 -->
+  <circle cx="80" cy="74" r="2.5" fill="#fff" opacity="0.7"/>
+  <!-- 左眼神器渐变 -->
+  <ellipse cx="82" cy="68" rx="16" ry="18" fill="url(#eyeShine)" opacity="0.4"/>
+
+  <!-- 右眼白 -->
+  <ellipse cx="118" cy="68" rx="16" ry="18" fill="#fff" stroke="#2a2a4a" stroke-width="2.5"/>
+  <!-- 右眼虹膜 -->
+  <ellipse cx="116" cy="70" rx="10" ry="12" fill="#1a1a2e"/>
+  <!-- 右眼瞳孔 -->
+  <ellipse cx="115" cy="71" rx="6" ry="7" fill="#0a0a15"/>
+  <!-- 右眼大高光 -->
+  <ellipse cx="120" cy="64" rx="5" ry="4.5" fill="#fff" opacity="0.95"/>
+  <!-- 右眼小高光 -->
+  <circle cx="112" cy="74" r="2.5" fill="#fff" opacity="0.7"/>
+  <!-- 右眼神器渐变 -->
+  <ellipse cx="118" cy="68" rx="16" ry="18" fill="url(#eyeShine)" opacity="0.4"/>
+
+  <!-- ====== 超明显腮红 ====== -->
+  <ellipse cx="66" cy="82" rx="10" ry="5" fill="url(#blush)"/>
+  <ellipse cx="134" cy="82" rx="10" ry="5" fill="url(#blush)"/>
+
+  <!-- ====== 猫嘴微笑 ====== -->
+  <path d="M90 85 Q95 92 100 85 Q105 92 110 85" fill="none" stroke="#2a2a4a" stroke-width="2" stroke-linecap="round"/>
+  <!-- 小牙 -->
+  <rect x="95" y="85" width="3" height="3" rx="1" fill="#fff"/>
+  <rect x="102" y="85" width="3" height="3" rx="1" fill="#fff"/>
+
+  <!-- ====== Q版小钳子 ====== -->
+  <!-- 左钳 -->
+  <path d="M70 110 Q58 100 46 90 Q40 84 38 78 Q36 72 42 70 Q48 68 50 74 Q52 80 56 86 Q60 92 68 102" 
+        fill="url(#headGrad)" stroke="#ff8fa3" stroke-width="2.5" filter="url(#sketch)"/>
+  <path d="M42 70 Q34 64 30 70 Q26 76 34 78 Q38 78 42 74" fill="#e94560" stroke="#ff8fa3" stroke-width="1.8"/>
+  <path d="M42 70 Q36 62 42 58 Q48 56 48 64 Q48 68 44 70" fill="#e94560" stroke="#ff8fa3" stroke-width="1.8"/>
+  
+  <!-- 右钳 -->
+  <path d="M130 110 Q142 100 154 90 Q160 84 162 78 Q164 72 158 70 Q152 68 150 74 Q148 80 144 86 Q140 92 132 102" 
+        fill="url(#headGrad)" stroke="#ff8fa3" stroke-width="2.5" filter="url(#sketch)"/>
+  <path d="M158 70 Q166 64 170 70 Q174 76 166 78 Q162 78 158 74" fill="#e94560" stroke="#ff8fa3" stroke-width="1.8"/>
+  <path d="M158 70 Q164 62 158 58 Q152 56 152 64 Q152 68 156 70" fill="#e94560" stroke="#ff8fa3" stroke-width="1.8"/>
+
+  <!-- ====== 小尾巴 ====== -->
+  <path d="M88 155 Q84 164 78 170" fill="none" stroke="#e94560" stroke-width="3.5" stroke-linecap="round" filter="url(#sketch)"/>
+  <path d="M100 157 Q100 168 96 174" fill="none" stroke="#e94560" stroke-width="3.5" stroke-linecap="round" filter="url(#sketch)"/>
+  <path d="M112 155 Q116 164 122 170" fill="none" stroke="#e94560" stroke-width="3.5" stroke-linecap="round" filter="url(#sketch)"/>
+  <path d="M78 170 Q70 176 66 172" fill="#e94560" stroke="#ff8fa3" stroke-width="1.5"/>
+  <path d="M96 174 Q92 182 86 180" fill="#e94560" stroke="#ff8fa3" stroke-width="1.5"/>
+  <path d="M122 170 Q130 176 134 172" fill="#e94560" stroke="#ff8fa3" stroke-width="1.5"/>
+
+  <!-- ====== 触须 - 更Q的曲线 ====== -->
+  <path d="M74 48 Q58 30 42 22" fill="none" stroke="#ff8fa3" stroke-width="2" stroke-linecap="round" stroke-dasharray="4,3"/>
+  <path d="M80 42 Q62 18 44 8" fill="none" stroke="#ff8fa3" stroke-width="2" stroke-linecap="round" stroke-dasharray="4,3"/>
+  <path d="M126 48 Q142 30 158 22" fill="none" stroke="#ff8fa3" stroke-width="2" stroke-linecap="round" stroke-dasharray="4,3"/>
+  <path d="M120 42 Q138 18 156 8" fill="none" stroke="#ff8fa3" stroke-width="2" stroke-linecap="round" stroke-dasharray="4,3"/>
+
+  <!-- 触须顶端小球 -->
+  <circle cx="42" cy="22" r="3" fill="#ff8fa3" opacity="0.8"/>
+  <circle cx="44" cy="8" r="2.5" fill="#ff8fa3" opacity="0.6"/>
+  <circle cx="158" cy="22" r="3" fill="#ff8fa3" opacity="0.8"/>
+  <circle cx="156" cy="8" r="2.5" fill="#ff8fa3" opacity="0.6"/>
+
+  <!-- ====== 闪亮星星 ====== -->
+  <text x="24" y="40" font-size="14" fill="#fbbf24" filter="url(#glow)">✦</text>
+  <text x="164" y="30" font-size="10" fill="#fbbf24" filter="url(#glow)">✧</text>
+  <text x="168" y="160" font-size="12" fill="#fbbf24" filter="url(#glow)">✦</text>
+  <text x="18" y="150" font-size="9" fill="#fbbf24" filter="url(#glow)">✧</text>
+
+  <!-- ====== 爱心装饰 ====== -->
+  <text x="150" y="50" font-size="12" fill="#ff6b81" opacity="0.9" filter="url(#glow)">♥</text>
+  <text x="36" y="110" font-size="8" fill="#ff6b81" opacity="0.6">♥</text>
+  <text x="155" y="120" font-size="6" fill="#ff6b81" opacity="0.5">♥</text>
+</svg>

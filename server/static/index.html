@@ -2,17 +2,21 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>🦞 Claw Todo</title>
-  <link rel="stylesheet" href="/style.css?v=10">
+  <meta name="viewport" content="width=1280, height=800, initial-scale=1.0, user-scalable=no">
+  <title>Claw Todo</title>
+  <link rel="stylesheet" href="/style.css?v83">
   <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <meta name="theme-color" content="#0d0d0d">
 </head>
 <body>
   <!-- 登录页 -->
   <div id="auth-screen" class="screen">
     <div class="auth-container">
-      <h1>🦞 Claw Todo</h1>
+      <div class="auth-logo">
+        <img src="/logo.svg" alt="🦞" class="logo-img">
+        <h1>Claw Todo</h1>
+      </div>
       <div id="setup-form" class="auth-form hidden">
         <h2>首次设置</h2>
         <p class="hint">创建管理员账号</p>
@@ -41,47 +45,310 @@
     <!-- 顶栏 -->
     <header class="app-header">
       <div class="header-left">
-        <h1>🦞</h1>
+        <img src="/logo.svg" alt="🦞" class="header-logo">
+        <span class="header-title">Claw Todo</span>
         <span id="online-status" class="status-dot online"></span>
+        <div id="daily-display" class="daily-display hidden"></div>
       </div>
+
       <div class="header-right">
-        <button id="add-btn" class="icon-btn" title="新建">➕</button>
-        <button id="settings-btn" class="icon-btn" title="设置">⚙️</button>
+        <button id="game-btn" class="icon-btn" title="企鹅岛(G)">🎮</button>
+        <button id="sound-btn" class="icon-btn" title="音效(M)">🔊</button>
+        <button id="add-btn" class="icon-btn" title="新建(N)">➕</button>
+        <button id="settings-btn" class="icon-btn" title="设置(S)">⚙️</button>
       </div>
     </header>
 
-    <!-- Kanban 看板 -->
-    <div class="kanban-board">
-      <div class="kanban-column" data-status="pending">
-        <div class="column-header">
-          <span class="column-title">📋 待办</span>
-          <span class="column-count" id="count-pending">0</span>
-        </div>
-        <div class="column-body" id="col-pending"></div>
+    <!-- Boss 血条（独立顶栏，不遮挡看板列标题） -->
+    <div id="boss-container" class="boss-container hidden">
+      <span id="boss-icon" class="boss-icon">🐉</span>
+      <span id="boss-name" class="boss-name">Boss</span>
+      <div id="boss-bar" class="boss-hp-bar">
+        <div id="boss-hp-bar" class="boss-hp-fill"></div>
       </div>
-      
-      <div class="kanban-column" data-status="in_progress">
+      <span id="boss-hp-text" class="boss-hp-text">HP 0/0</span>
+      <span class="boss-hint-text">🍅=⚔️ 击败=+150XP</span>
+    </div>
+    <!-- Kanban 看板 - 双栏聚焦视图 -->
+    <div class="kanban-board" id="kanban-board">
+      <!-- 左列 -->
+      <div class="kanban-column" id="view-left" data-view-idx="0">
         <div class="column-header">
-          <span class="column-title">🔄 进行中</span>
-          <span class="column-count" id="count-in_progress">0</span>
+          <span class="column-icon" id="left-icon">📋</span>
+          <span class="column-title" id="left-title">待办</span>
+          <span class="column-count" id="left-count">0</span>
         </div>
-        <div class="column-body" id="col-in_progress"></div>
+        <div class="column-body" id="col-left"></div>
       </div>
-      
-      <div class="kanban-column" data-status="completed">
+      <!-- 右列 -->
+      <div class="kanban-column" id="view-right" data-view-idx="1">
         <div class="column-header">
-          <span class="column-title">✅ 已完成</span>
-          <span class="column-count" id="count-completed">0</span>
+          <span class="column-icon" id="right-icon">🔄</span>
+          <span class="column-title" id="right-title">进行中</span>
+          <span class="column-count" id="right-count">0</span>
         </div>
-        <div class="column-body" id="col-completed"></div>
+        <div class="column-body" id="col-right"></div>
       </div>
-      
-      <div class="kanban-column" data-status="postponed">
-        <div class="column-header">
-          <span class="column-title">⏰ 推迟</span>
-          <span class="column-count" id="count-postponed">0</span>
+    </div>
+
+    <!-- Combo 连击显示器 -->
+    <div id="combo-display" class="combo-display hidden"></div>
+
+    <!-- 底部状态栏 -->
+    <div id="status-bar">
+      <div class="sb-game" data-sb-idx="0" id="sb-game-area">
+        <span class="game-level" id="game-level">Lv.1</span>
+        <span class="game-title" id="game-title">新手小虾</span>
+        <div class="xp-bar-container">
+          <div class="xp-bar" id="game-xp-bar"></div>
         </div>
-        <div class="column-body" id="col-postponed"></div>
+        <span class="xp-text" id="game-xp-text">0/100</span>
+        <span class="game-today" id="game-today">🍅0</span>
+        <span class="game-buffs" id="game-buffs"></span>
+      </div>
+      <span class="sb-divider">|</span>
+      <span class="sb-col" id="sb-col">📋 待办</span>
+      <span class="sb-divider">|</span>
+      <span class="sb-title" id="sb-title"></span>
+      <span class="sb-hint" id="sb-hint">←→ 切换列 | ↑↓ 选择 | Enter 操作 | Space 番茄</span>
+      <span class="sb-divider">|</span>
+      <div class="sb-ach sb-action-item" id="sb-ach">🏆×0</div>
+      <span class="sb-divider">|</span>
+      <div class="sb-workout sb-action-item" id="sb-workout">🤸×0</div>
+      <span class="sb-divider">|</span>
+      <div class="sb-meditate sb-action-item" id="sb-meditate">🧘×0</div>
+    </div>
+
+    <!-- 列切换指示器 -->
+    <div id="col-indicator" class="col-indicator hidden">
+      <span class="ci-icon" id="ci-icon"></span>
+      <span class="ci-name" id="ci-name"></span>
+    </div>
+
+    <!-- 番茄钟覆盖层 -->
+    <div id="pomodoro-overlay" class="pomodoro-overlay hidden">
+      <div class="pomo-card">
+        <div class="pomo-ring-wrap">
+          <svg class="pomo-ring-svg" viewBox="0 0 200 200">
+            <circle class="pomo-ring-bg" cx="100" cy="100" r="88" fill="none" stroke="#1c1c1c" stroke-width="8"/>
+            <circle class="pomo-ring-fg" id="pomo-ring-fg" cx="100" cy="100" r="88" fill="none" stroke="url(#pomoGrad)" stroke-width="8" stroke-linecap="round"
+              stroke-dasharray="553" stroke-dashoffset="0" transform="rotate(-90 100 100)"/>
+            <defs>
+              <linearGradient id="pomoGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#e94560"/>
+                <stop offset="100%" stop-color="#ff6b81"/>
+              </linearGradient>
+            </defs>
+          </svg>
+          <div class="pomo-ring-content">
+            <div class="pomo-tomato" id="pomo-tomato-emoji">🍅</div>
+            <div class="pomo-timer" id="pomo-timer">25:00</div>
+          </div>
+        </div>
+        <div class="pomo-task-name" id="pomo-task-name"></div>
+        <div class="pomo-bgm-bar">
+          <span class="bgm-label" id="bgm-label">🔇</span>
+          <span class="bgm-name" id="bgm-name">静音</span>
+        </div>
+        <div class="pomo-notes" id="pomo-notes-section">
+          <div class="pomo-notes-header">📝 随笔</div>
+          <div class="pomo-notes-list" id="pomo-notes-list"></div>
+        </div>
+        <div class="pomo-controls">
+          <button class="pomo-btn pomo-pause" id="pomo-pause-btn">⏸ 暂停</button>
+          <button class="pomo-btn pomo-abandon" id="pomo-abandon-btn">✕ 放弃</button>
+        </div>
+        <div class="pomo-hint">Esc 放弃 | Enter 暂停 | ←→ 切换BGM | Space 随笔录音</div>
+      </div>
+    </div>
+
+    <!-- 番茄模式选择 -->
+    <div id="pomo-mode-select" class="pomo-mode-select hidden">
+      <div class="pomo-mode-card">
+        <div class="pomo-mode-title">🍅 选择模式</div>
+        <div class="pomo-mode-options">
+          <div class="pomo-mode-option focused" id="pomo-mode-normal" data-mode="normal">
+            <div class="pomo-mode-icon">🍅</div>
+            <div class="pomo-mode-label">标准 25分钟</div>
+          </div>
+          <div class="pomo-mode-option" id="pomo-mode-mini" data-mode="mini">
+            <div class="pomo-mode-icon">🚀</div>
+            <div class="pomo-mode-label">起手式 5分钟</div>
+          </div>
+        </div>
+        <div class="pomo-mode-hint">↑↓ 选择 | Enter 确认 | Esc 取消</div>
+      </div>
+    </div>
+
+    <!-- 5分钟起手式完成 -->
+    <div id="mini-pomo-done" class="mini-pomo-done hidden">
+      <div class="mini-pomo-card">
+        <div class="mini-pomo-emoji">🚀</div>
+        <div class="mini-pomo-title">5分钟起手式完成！</div>
+        <div class="mini-pomo-sub">已经进入状态了，继续吗？</div>
+        <div class="mini-pomo-options">
+          <div class="mini-pomo-option focused" id="mini-continue" data-action="continue">
+            <span>🔥 继续做完</span><span class="mini-pomo-bonus">XP+50%</span>
+          </div>
+          <div class="mini-pomo-option" id="mini-stop" data-action="stop">
+            <span>✓ 就到这里</span>
+          </div>
+        </div>
+        <div class="pomo-mode-hint">↑↓ 选择 | Enter 确认</div>
+      </div>
+    </div>
+
+    <!-- 盲盒轮盘 -->
+    <div id="roulette-overlay" class="roulette-overlay hidden">
+      <div class="roulette-card">
+        <div class="roulette-title">🎰 命运之轮</div>
+        <div class="roulette-spinner" id="roulette-spinner">
+          <div class="roulette-task" id="roulette-task-name">???</div>
+        </div>
+        <div class="roulette-hint" id="roulette-hint">命运正在选择...</div>
+      </div>
+    </div>
+
+    <!-- 番茄钟完成庆祝 -->
+    <div id="pomo-celebrate" class="pomo-celebrate hidden">
+      <div class="celebrate-content">
+        <div class="celebrate-emoji">🍅</div>
+        <div class="celebrate-title">番茄完成！</div>
+        <div class="celebrate-count" id="celebrate-count"></div>
+        <button class="pomo-btn pomo-done" id="pomo-done-btn">✓ 好的</button>
+      </div>
+    </div>
+
+    <!-- 运动挑战选择 -->
+    <div id="workout-select" class="workout-select hidden">
+      <div class="workout-select-card">
+        <h2>🏃 运动挑战</h2>
+        <div class="workout-filters">
+          <button class="wf-btn active" data-filter="all">全部</button>
+          <button class="wf-btn" data-filter="easy">新手</button>
+          <button class="wf-btn" data-filter="medium">进阶</button>
+          <button class="wf-btn" data-filter="hard">硬核</button>
+        </div>
+        <div class="workout-list" id="workout-list"></div>
+        <div class="workout-select-hint">↑↓ 选择 | Enter 开始 | Esc 返回</div>
+      </div>
+    </div>
+
+    <!-- 运动进行中 -->
+    <div id="workout-overlay" class="workout-overlay hidden">
+      <div class="workout-card">
+        <!-- 上9：图片区 -->
+        <div class="workout-img-wrap" id="workout-img-wrap">
+          <img class="workout-full-bg" id="workout-full-bg" src="" alt="" />
+          <img class="workout-full-img" id="workout-full-img" src="" alt="" />
+          <div class="workout-full-placeholder" id="workout-full-placeholder">🏋️</div>
+          <!-- 叠加：顶部信息栏 -->
+          <div class="workout-hud-top">
+            <span class="workout-icon" id="workout-icon">🏃</span>
+            <span class="workout-name" id="workout-name">挑战名</span>
+            <div class="workout-step-dots" id="workout-step-dots"></div>
+            <span class="workout-progress" id="workout-progress">1/7</span>
+          </div>
+          <!-- 叠加：右上角倒计时环 -->
+          <div class="workout-hud-timer">
+            <div class="workout-timer-ring" id="workout-timer-ring">
+              <svg viewBox="0 0 100 100" class="timer-svg">
+                <circle cx="50" cy="50" r="44" class="timer-bg" />
+                <circle cx="50" cy="50" r="44" class="timer-fg" id="timer-fg" />
+              </svg>
+              <div class="timer-text" id="workout-timer">00:30</div>
+            </div>
+          </div>
+          <!-- 叠加：步骤提示 -->
+          <div class="workout-step-tip" id="workout-step-tip"></div>
+        </div>
+        <!-- 下1：底部信息条 -->
+        <div class="workout-hud-bottom">
+          <div class="workout-exercise" id="workout-exercise">动作名</div>
+          <div class="workout-desc" id="workout-desc">动作要领描述</div>
+          <div class="workout-next" id="workout-next">下一个：XXX</div>
+        </div>
+        <!-- 叠加层：底部控制 -->
+        <div class="workout-hud-controls">
+          <div class="workout-bar"><div class="workout-bar-fill" id="workout-bar-fill"></div></div>
+          <div class="workout-controls">
+            <button class="workout-btn workout-pause" id="workout-pause-btn">⏸ 暂停</button>
+            <button class="workout-btn workout-skip" id="workout-skip-btn">⏭ 跳过</button>
+            <button class="workout-btn workout-abandon" id="workout-abandon-btn">✕ 放弃</button>
+          </div>
+          <div class="workout-hint">Esc 放弃 | ← → 跳过 | Space 暂停</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 运动完成 -->
+    <div id="workout-complete" class="workout-complete hidden">
+      <div class="workout-complete-card">
+        <div class="wc-icon">💪</div>
+        <div class="wc-title">挑战完成！</div>
+        <div class="wc-name" id="wc-name"></div>
+        <div class="wc-stats">
+          <span class="wc-stat">⏱ <span id="wc-duration">7</span>分钟</span>
+          <span class="wc-stat">🔥 <span id="wc-calories">50</span>卡</span>
+        </div>
+        <div class="wc-reward">+<span id="wc-xp">75</span> XP</div>
+        <button class="workout-btn workout-done" id="workout-done-btn">✓ 好的</button>
+      </div>
+    </div>
+
+    <!-- 冥想选择 -->
+    <div id="meditate-select" class="workout-select hidden">
+      <div class="workout-select-card">
+        <h2>🧘 冥想</h2>
+        <div class="workout-list" id="meditate-list"></div>
+        <div class="workout-select-hint">↑↓ 选择 | Enter 开始 | Esc 返回</div>
+      </div>
+    </div>
+
+    <!-- 冥想进行中 -->
+    <div id="meditate-overlay" class="workout-overlay hidden">
+      <div class="workout-card meditate-card">
+        <!-- 全屏冥想背景图 -->
+        <img class="workout-full-bg" id="meditate-full-bg" src="" alt="" />
+        <img class="workout-full-img" id="meditate-full-img" src="" alt="" />
+        <div class="workout-full-placeholder" id="meditate-full-placeholder">🧘</div>
+        <!-- 叠加层：顶部信息 -->
+        <div class="workout-hud-top">
+          <span class="workout-icon" id="meditate-icon"></span>
+          <span class="workout-name" id="meditate-name">冥想</span>
+          <span class="workout-progress" id="meditate-progress"></span>
+        </div>
+        <!-- 叠加层：中央呼吸圈 -->
+        <div class="meditate-breath" id="meditate-breath">
+          <div class="breath-circle" id="breath-circle">
+            <div class="breath-text" id="breath-text">准备</div>
+          </div>
+        </div>
+        <!-- 叠加层：底部控制 -->
+        <div class="workout-hud-controls meditate-hud-controls">
+          <div class="workout-timer-wrap">
+            <div class="workout-timer" id="meditate-timer">05:00</div>
+          </div>
+          <div class="workout-controls">
+            <button class="workout-btn workout-pause" id="meditate-pause-btn">⏸ 暂停</button>
+            <button class="workout-btn workout-abandon" id="meditate-abandon-btn">✕ 放弃</button>
+          </div>
+          <div class="workout-hint">Esc 放弃 | Enter/Space 暂停</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 冥想完成 -->
+    <div id="meditate-complete" class="workout-complete hidden">
+      <div class="workout-complete-card">
+        <div class="wc-icon">🧘</div>
+        <div class="wc-title">冥想完成</div>
+        <div class="wc-name" id="mc-name"></div>
+        <div class="wc-stats">
+          <span class="wc-stat">⏱ <span id="mc-duration">5</span>分钟</span>
+        </div>
+        <div class="wc-reward">+<span id="mc-xp">50</span> XP <span class="meditate-buff">🧘 禅定 +30%XP</span></div>
+        <button class="workout-btn workout-done" id="meditate-done-btn">✓ 好的</button>
       </div>
     </div>
 
@@ -90,21 +357,51 @@
       <div class="modal-backdrop"></div>
       <div class="modal-content">
         <h2 id="modal-title">新建待办</h2>
-        <input type="text" id="todo-title-input" placeholder="标题 *" required>
-        <textarea id="todo-desc-input" placeholder="描述（可选）" rows="2"></textarea>
+        <input type="text" id="todo-title-input" placeholder="标题 *（空时Y键语音输入）" required>
+        <textarea id="todo-desc-input" placeholder="描述（空时Y键语音输入）" rows="2"></textarea>
         <div class="form-row">
-          <select id="todo-priority-input">
-            <option value="normal">普通</option>
-            <option value="high">重要</option>
-            <option value="urgent">紧急</option>
-            <option value="low">低</option>
-          </select>
-          <select id="todo-status-input">
-            <option value="pending">待办</option>
-            <option value="in_progress">进行中</option>
-          </select>
+          <div class="custom-select" id="cs-priority" data-field="priority" tabindex="0">
+            <button class="cs-btn cs-prev" data-dir="-1" tabindex="-1">◀</button>
+            <span class="cs-value" id="cs-priority-value">普通</span>
+            <button class="cs-btn cs-next" data-dir="1" tabindex="-1">▶</button>
+            <select id="todo-priority-input" class="cs-hidden">
+              <option value="normal">普通</option>
+              <option value="high">重要</option>
+              <option value="urgent">紧急</option>
+              <option value="low">低</option>
+            </select>
+          </div>
+          <div class="custom-select" id="cs-status" data-field="status" tabindex="0">
+            <button class="cs-btn cs-prev" data-dir="-1" tabindex="-1">◀</button>
+            <span class="cs-value" id="cs-status-value">待办</span>
+            <button class="cs-btn cs-next" data-dir="1" tabindex="-1">▶</button>
+            <select id="todo-status-input" class="cs-hidden">
+              <option value="pending">待办</option>
+              <option value="in_progress">进行中</option>
+              <option value="completed">已完成</option>
+              <option value="postponed">推迟</option>
+            </select>
+          </div>
         </div>
-        <input type="datetime-local" id="todo-due-input">
+        <div class="form-row">
+          <div class="form-label">截止</div>
+          <div class="deadline-picker" id="deadline-picker" tabindex="0">
+            <span class="dp-part" data-field="month"><span class="dp-btn dp-prev" data-dir="-1">◀</span><span class="dp-val" id="dp-month">6</span><span class="dp-btn dp-next" data-dir="1">▶</span></span>
+            <span class="dp-sep">/</span>
+            <span class="dp-part" data-field="day"><span class="dp-btn dp-prev" data-dir="-1">◀</span><span class="dp-val" id="dp-day">7</span><span class="dp-btn dp-next" data-dir="1">▶</span></span>
+            <span class="dp-sep dp-weekday" id="dp-weekday">日</span>
+            <span class="dp-sep" style="margin-left:8px"></span>
+            <span class="dp-part" data-field="hour"><span class="dp-btn dp-prev" data-dir="-1">◀</span><span class="dp-val" id="dp-hour">14</span><span class="dp-btn dp-next" data-dir="1">▶</span></span>
+            <span class="dp-sep">:</span>
+            <span class="dp-part" data-field="min"><span class="dp-btn dp-prev" data-dir="-1">◀</span><span class="dp-val" id="dp-min">30</span><span class="dp-btn dp-next" data-dir="1">▶</span></span>
+          </div>
+          <input type="hidden" id="todo-deadline-input" value="">
+        </div>
+        <div class="modal-notes-section hidden" id="modal-notes-section">
+          <div class="modal-notes-header">📝 番茄随笔</div>
+          <div class="modal-notes-list" id="modal-notes-list"></div>
+          <button class="btn-extract-todo" id="btn-extract-todo" title="AI抽取随笔中的待办">🤖 抽取待办</button>
+        </div>
         <div class="modal-actions">
           <button id="modal-cancel" class="btn-secondary">取消</button>
           <button id="modal-save" class="btn-primary">保存</button>
@@ -146,7 +443,29 @@
 
   <!-- Toast -->
   <div id="toast" class="toast hidden"></div>
+  
+  <!-- 语音录制遮罩 -->
+  <div id="voice-overlay" class="voice-overlay hidden">
+    <div class="voice-ring-container">
+      <div class="voice-ring"></div>
+      <div class="voice-ring-inner"></div>
+      <span class="voice-mic-icon">🎤</span>
+    </div>
+    <div class="voice-wave">
+      <div class="voice-wave-bar"></div>
+      <div class="voice-wave-bar"></div>
+      <div class="voice-wave-bar"></div>
+      <div class="voice-wave-bar"></div>
+      <div class="voice-wave-bar"></div>
+    </div>
+    <div class="voice-status">正在录音...</div>
+    <div class="voice-timer" id="voice-timer">00:00</div>
+    <div class="voice-hint">Space(Y键) 发送识别 | Esc(B键) 取消</div>
+  </div>
 
-  <script src="/app.js?v=10"></script>
+  <!-- 粒子特效层 -->
+  <div id="particle-layer" class="particle-layer"></div>
+
+  <script src="/app.js?v83"></script>
 </body>
 </html>
