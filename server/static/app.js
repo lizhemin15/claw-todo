@@ -1866,7 +1866,6 @@ function handleKeyNav(e) {
   if (focusMode === 'meditate') { handleMeditateNav(e); return; }
   if (focusMode === 'meditate-complete') { handleMeditateCompleteNav(e); return; }
   if (focusMode === 'xp-panel' || focusMode === 'achieve-panel') { handleInfoPanelNav(e); return; }
-  if (focusMode === 'penguin-island') { handlePenguinIslandNav(e); return; }
   if (focusMode === 'auth') return; // 登录页用原生tab
 
   // focusMode === 'kanban' 时，按 focusZone 路由
@@ -1885,7 +1884,7 @@ function isInputFocused() {
 }
 
 // ═══════════════════ Header 导航 ═══════════════════
-const HEADER_BTNS = ['game-btn', 'sound-btn', 'add-btn', 'settings-btn']; // 0=企鹅岛, 1=音效, 2=新建, 3=设置
+const HEADER_BTNS = ['sound-btn', 'add-btn', 'settings-btn']; // 0=音效, 1=新建, 2=设置
 
 function handleHeaderNav(e) {
   const key = e.key;
@@ -1931,15 +1930,6 @@ function handleHeaderNav(e) {
       updateFocus(); updateStatusBar();
       break;
   }
-
-  // keyup: 转发给企鹅岛iframe
-  document.addEventListener('keyup', (e) => {
-    if (focusMode === 'penguin-island' && penguinIslandIframe) {
-      try {
-        penguinIslandIframe.contentWindow.postMessage({ type: 'keyup', key: e.key }, '*');
-      } catch(err) {}
-    }
-  });
 }
 
 function updateHeaderFocus() {
@@ -2108,13 +2098,6 @@ function handleKanbanNav(e) {
       // S 键：快速设置（键盘用户，Steam Deck 用顶栏导航）
       e.preventDefault();
       playSound('select'); openSettings();
-      break;
-
-    case 'g':
-    case 'G':
-      // G 键：企鹅岛
-      e.preventDefault();
-      playSound('select'); togglePenguinIsland();
       break;
 
     case 'w':
@@ -3127,6 +3110,103 @@ function bgmUpdateUI() {
   $('bgm-name').textContent = cur.name;
   const bar = document.querySelector('.pomo-bgm-bar');
   if (bar) bar.classList.toggle('active', cur.id !== 'off');
+  // 更新 BGM 视觉效果
+  updateBgmVisual(cur.id);
+}
+
+// BGM 视觉效果：给 pomo-card 切换 CSS 类 + 效果层动画
+function updateBgmVisual(bgmId) {
+  const card = document.querySelector('.pomo-card');
+  if (!card) return;
+  // 清除旧的
+  card.classList.remove('bgm-rain', 'bgm-ocean', 'bgm-fire', 'bgm-forest', 'bgm-stream', 'bgm-off');
+  if (bgmId !== 'off') {
+    card.classList.add('bgm-' + bgmId);
+  } else {
+    card.classList.add('bgm-off');
+  }
+  // 管理效果层
+  let fxLayer = document.getElementById('bgm-fx-layer');
+  if (bgmId === 'off') {
+    if (fxLayer) { fxLayer.innerHTML = ''; fxLayer.classList.add('hidden'); }
+    return;
+  }
+  if (!fxLayer) {
+    fxLayer = document.createElement('div');
+    fxLayer.id = 'bgm-fx-layer';
+    fxLayer.className = 'bgm-fx-layer';
+    card.insertBefore(fxLayer, card.firstChild);
+  }
+  fxLayer.classList.remove('hidden');
+  fxLayer.innerHTML = '';
+  switch (bgmId) {
+    case 'rain': spawnRainDrops(fxLayer); break;
+    case 'ocean': spawnOceanWaves(fxLayer); break;
+    case 'fire': spawnFireEmbers(fxLayer); break;
+    case 'forest': spawnLeaves(fxLayer); break;
+    case 'stream': spawnBubbles(fxLayer); break;
+  }
+}
+
+// 雨滴效果
+function spawnRainDrops(container) {
+  for (let i = 0; i < 30; i++) {
+    const drop = document.createElement('div');
+    drop.className = 'bgm-rain-drop';
+    drop.style.left = (Math.random() * 100) + '%';
+    drop.style.animationDelay = (Math.random() * 0.8) + 's';
+    drop.style.animationDuration = (0.4 + Math.random() * 0.4) + 's';
+    container.appendChild(drop);
+  }
+}
+
+// 海浪效果
+function spawnOceanWaves(container) {
+  for (let i = 0; i < 3; i++) {
+    const wave = document.createElement('div');
+    wave.className = 'bgm-ocean-wave';
+    wave.style.top = (30 + i * 25) + '%';
+    wave.style.animationDelay = (i * 0.6) + 's';
+    container.appendChild(wave);
+  }
+}
+
+// 篝火粒子
+function spawnFireEmbers(container) {
+  for (let i = 0; i < 20; i++) {
+    const ember = document.createElement('div');
+    ember.className = 'bgm-fire-ember';
+    ember.style.left = (30 + Math.random() * 40) + '%';
+    ember.style.bottom = (20 + Math.random() * 30) + '%';
+    ember.style.animationDelay = (Math.random() * 1.5) + 's';
+    ember.style.animationDuration = (1.5 + Math.random() * 2) + 's';
+    container.appendChild(ember);
+  }
+}
+
+// 落叶效果
+function spawnLeaves(container) {
+  for (let i = 0; i < 15; i++) {
+    const leaf = document.createElement('div');
+    leaf.className = 'bgm-forest-leaf';
+    leaf.style.left = (Math.random() * 80 + 10) + '%';
+    leaf.style.animationDelay = (Math.random() * 3) + 's';
+    leaf.style.animationDuration = (3 + Math.random() * 4) + 's';
+    container.appendChild(leaf);
+  }
+}
+
+// 溪流气泡
+function spawnBubbles(container) {
+  for (let i = 0; i < 12; i++) {
+    const bubble = document.createElement('div');
+    bubble.className = 'bgm-stream-bubble';
+    bubble.style.left = (Math.random() * 80 + 10) + '%';
+    bubble.style.bottom = Math.random() * 20 + '%';
+    bubble.style.animationDelay = (Math.random() * 2) + 's';
+    bubble.style.animationDuration = (1.5 + Math.random() * 2) + 's';
+    container.appendChild(bubble);
+  }
 }
 
 function bgmStop() {
@@ -3486,6 +3566,15 @@ function startPomodoro(todoId, todoTitle) {
   $('pomo-mode-select').classList.remove('hidden');
   focusMode = 'pomo-mode-select';
   playSound('select');
+  
+  // 绑定鼠标点击事件
+  document.querySelectorAll('#pomo-mode-select .pomo-mode-option').forEach((el, idx) => {
+    el.onclick = () => {
+      pomoModeIndex = idx;
+      updatePomoModeFocus();
+      confirmPomoMode();
+    };
+  });
 }
 
 function updatePomoModeFocus() {
@@ -3552,7 +3641,6 @@ function pomoTick() {
 
   if (pomoState.remainingSeconds <= 0) {
     // 番茄完成！
-    pushPomoSync(); // 通知企鹅岛番茄完成
     if (isMiniPomo) {
       // 5分钟起手式完成 → 弹选择
       showMiniPomoDone();
@@ -3596,9 +3684,6 @@ function updatePomoDisplay() {
       card.classList.remove('urgent-mode');
     }
   }
-
-  // 每5秒同步企鹅岛番茄钟状态
-  if (pomoState.remainingSeconds % 5 === 0) pushPomoSync();
 
   // 更新页面标题
   document.title = `🍅 ${timeStr} - ${pomoState.todoTitle}`;
@@ -4378,8 +4463,6 @@ function setupEventListeners() {
     $('sound-btn').textContent = soundEnabled ? '🔊' : '🔇';
     if (soundEnabled) playSound('confirm');
   };
-
-  $('game-btn').onclick = () => { togglePenguinIsland(); };
 
   $('modal-cancel').onclick = () => { closeTodoModal(); playSound('cancel'); };
   $('modal-save').onclick = saveTodo;
@@ -5843,137 +5926,3 @@ function handleMeditateCompleteNav(e) {
     closeMeditateComplete();
   }
 }
-
-// ═══════════════════ 企鹅岛 ═══════════════════
-let penguinIslandOpen = false;
-let penguinIslandIframe = null;
-
-function togglePenguinIsland() {
-  if (penguinIslandOpen) {
-    closePenguinIsland();
-  } else {
-    openPenguinIsland();
-  }
-}
-
-// 企鹅岛自己直连WebSocket获取数据，主界面只负责：
-// 1. 处理islandAction（启动番茄钟等需要主界面UI配合的操作）
-// 2. 推送番茄钟实时状态（pomoSync），因为番茄钟倒计时在主界面
-function pushPomoSync() {
-  if (!penguinIslandOpen || !penguinIslandIframe) return;
-  try {
-    penguinIslandIframe.contentWindow.postMessage({
-      type: 'pomoSync',
-      pomo: {
-        active: pomoState.active,
-        paused: pomoState.paused,
-        state: pomoState.active ? (pomoState.isBreak ? 'break' : 'work') : 'idle',
-        remaining: pomoState.remainingSeconds || 0,
-        total: pomoState.totalSeconds || 0,
-      }
-    }, '*');
-  } catch(e) {}
-}
-function openPenguinIsland() {
-  if (penguinIslandOpen) return;
-  penguinIslandOpen = true;
-
-  // 创建全屏overlay
-  const overlay = document.createElement('div');
-  overlay.id = 'penguin-island-overlay';
-  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:#000;';
-
-  const iframe = document.createElement('iframe');
-  iframe.src = '/penguin-island/index.html?v=' + Date.now();
-  iframe.style.cssText = 'width:100%;height:100%;border:none;';
-  iframe.allow = 'gamepad';
-  penguinIslandIframe = iframe;
-
-  overlay.appendChild(iframe);
-  document.body.appendChild(overlay);
-
-  focusMode = 'penguin-island';
-  setTimeout(() => { if (penguinIslandIframe) penguinIslandIframe.contentWindow.focus(); }, 300);
-}
-
-// 每帧检测手柄，转发输入给企鹅岛iframe
-function pollGamepadForPenguinIsland() {
-  if (!penguinIslandOpen || !penguinIslandIframe) return;
-  const gpList = navigator.getGamepads();
-  if (!gpList) return;
-  let gp = null;
-  for (let i = 0; i < gpList.length; i++) {
-    if (gpList[i]) { gp = gpList[i]; break; }
-  }
-  if (!gp) return;
-  const data = {
-    type: 'gamepad',
-    axes: Array.from(gp.axes),
-    buttons: Array.from(gp.buttons).map(b => b.pressed)
-  };
-  try { penguinIslandIframe.contentWindow.postMessage(data, '*'); } catch(e) {}
-}
-
-function closePenguinIsland() {
-  const overlay = $('penguin-island-overlay');
-  if (overlay) overlay.remove();
-  penguinIslandOpen = false;
-  penguinIslandIframe = null;
-  focusMode = 'kanban';
-}
-
-function handlePenguinIslandNav(e) {
-  if (e.key === 'Escape') {
-    e.preventDefault();
-    playSound('cancel');
-    closePenguinIsland();
-  } else {
-    e.preventDefault();
-    e.stopPropagation();
-    if (penguinIslandIframe) {
-      try {
-        penguinIslandIframe.contentWindow.postMessage({ type: 'keydown', key: e.key }, '*');
-      } catch(err) {}
-    }
-  }
-}
-
-// 监听iframe发来的消息
-window.addEventListener('message', (e) => {
-  if (e.data === 'closePenguinIsland') closePenguinIsland();
-  // 企鹅岛回传操作
-  if (e.data && e.data.type === 'islandAction') {
-    const a = e.data.action;
-    if (a.type === 'startPomo' && a.taskId) {
-      const t = todos.find(t => t.id === a.taskId);
-      if (t) startPomodoro(t.id, t.title);
-    }
-    if (a.type === 'pomoSpaceExit' || a.type === 'pomoSpaceEnter') {
-      // 企鹅岛有自己的番茄钟，关闭父页面模式选择
-      if (focusMode === 'pomo-mode-select') {
-        $('pomo-mode-select').classList.add('hidden');
-        focusMode = 'kanban';
-      }
-    }
-  }
-});
-
-// 手柄轮询定时器（企鹅岛打开时启动）
-let gamepadPollInterval = null;
-const origOpen = openPenguinIsland;
-openPenguinIsland = function() {
-  origOpen();
-  if (!gamepadPollInterval) {
-    gamepadPollInterval = setInterval(pollGamepadForPenguinIsland, 16);
-  }
-};
-const origClose = closePenguinIsland;
-closePenguinIsland = function() {
-  origClose();
-  if (gamepadPollInterval) {
-    clearInterval(gamepadPollInterval);
-    gamepadPollInterval = null;
-  }
-};
-
-

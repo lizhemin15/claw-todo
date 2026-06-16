@@ -492,6 +492,85 @@ button:active { opacity: 0.6; }
 .pomo-done { background: var(--accent); color: #fff; }
 .pomo-hint { font-size: 0.75rem; color: var(--text3); }
 
+/* === BGM 视觉效果 === */
+.bgm-fx-layer {
+  position: absolute; inset: 0; pointer-events: none; overflow: hidden;
+  border-radius: 24px; z-index: 0;
+}
+.bgm-fx-layer.hidden { display: none; }
+
+/* 雨滴 */
+.bgm-rain-drop {
+  position: absolute; top: -10px; width: 2px; height: 20px;
+  background: linear-gradient(transparent, rgba(100,180,255,0.6));
+  animation: rainFall 0.6s linear infinite;
+  opacity: 0;
+}
+@keyframes rainFall {
+  0% { transform: translateY(-20px); opacity: 0; }
+  10% { opacity: 1; }
+  100% { transform: translateY(640px); opacity: 0; }
+}
+
+/* 海浪 */
+.bgm-ocean-wave {
+  position: absolute; left: -20%; width: 140%; height: 80px;
+  background: linear-gradient(90deg,
+    rgba(0,150,200,0.05), rgba(0,180,220,0.15), rgba(0,150,200,0.05),
+    rgba(0,180,220,0.1), rgba(0,150,200,0.05)
+  );
+  border-radius: 40%;
+  animation: waveDrift 4s ease-in-out infinite alternate;
+}
+@keyframes waveDrift {
+  0% { transform: translateX(-20px) translateY(0); }
+  100% { transform: translateX(20px) translateY(-10px); }
+}
+
+/* 篝火粒子 */
+.bgm-fire-ember {
+  position: absolute; width: 4px; height: 4px;
+  background: #ff8c00;
+  border-radius: 50%;
+  box-shadow: 0 0 6px #ff6600, 0 0 10px #ff4500;
+  animation: emberRise 2s ease-out infinite;
+  opacity: 0;
+}
+@keyframes emberRise {
+  0% { transform: translateY(0) translateX(0) scale(1); opacity: 0.8; }
+  50% { opacity: 0.6; }
+  100% { transform: translateY(-120px) translateX(20px) scale(0.2); opacity: 0; }
+}
+
+/* 落叶 */
+.bgm-forest-leaf {
+  position: absolute; top: -20px; width: 12px; height: 12px;
+  background: rgba(100,180,80,0.5);
+  border-radius: 50% 0 50% 0;
+  animation: leafFall 4s linear infinite;
+  opacity: 0;
+}
+@keyframes leafFall {
+  0% { transform: translateY(0) translateX(0) rotate(0deg); opacity: 0; }
+  10% { opacity: 0.6; }
+  100% { transform: translateY(640px) translateX(40px) rotate(360deg); opacity: 0; }
+}
+
+/* 溪流气泡 */
+.bgm-stream-bubble {
+  position: absolute; bottom: 0; width: 8px; height: 8px;
+  border: 1px solid rgba(150,220,255,0.4);
+  background: rgba(200,240,255,0.15);
+  border-radius: 50%;
+  animation: bubbleRise 2s ease-out infinite;
+  opacity: 0;
+}
+@keyframes bubbleRise {
+  0% { transform: translateY(0) scale(1); opacity: 0; }
+  10% { opacity: 0.6; }
+  100% { transform: translateY(-300px) scale(0.3); opacity: 0; }
+}
+
 /* === Pomo Mode Select === */
 .pomo-mode-select {
   position: fixed; inset: 0; z-index: 200;
